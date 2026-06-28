@@ -1,0 +1,119 @@
+/* public/css/variables.css */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+    --font-heading: 'Outfit', sans-serif;
+    --font-body: 'Plus Jakarta Sans', sans-serif;
+
+    /* Transition speeds */
+    --transition-fast: 0.2s ease;
+    --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: 0.5s ease;
+
+    /* Light Theme (Default) */
+    --bg-primary: #f8fafc;
+    --bg-secondary: #ffffff;
+    --bg-glass: rgba(255, 255, 255, 0.7);
+    --bg-glass-hover: rgba(255, 255, 255, 0.85);
+    --border-glass: rgba(226, 232, 240, 0.8);
+    
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+
+    --accent: #4f46e5;
+    --accent-light: #818cf8;
+    --accent-hover: #4338ca;
+    --accent-gradient: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+    --accent-shadow: rgba(79, 70, 229, 0.2);
+
+    /* Card Shadows */
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
+    --shadow-glass: 0 8px 32px 0 rgba(31, 38, 135, 0.04);
+
+    /* Status Colors */
+    --status-gray-bg: #f1f5f9;
+    --status-gray-text: #64748b;
+    --status-gray-border: #cbd5e1;
+
+    --status-red-bg: #fef2f2;
+    --status-red-text: #ef4444;
+    --status-red-border: #fca5a5;
+
+    --status-yellow-bg: #fffbeb;
+    --status-yellow-text: #d97706;
+    --status-yellow-border: #fcd34d;
+
+    --status-green-bg: #ecfdf5;
+    --status-green-text: #10b981;
+    --status-green-border: #6ee7b7;
+
+    --sidebar-width: 260px;
+    --border-radius-sm: 8px;
+    --border-radius-md: 16px;
+    --border-radius-lg: 24px;
+}
+
+/* Dark Theme Overrides */
+[data-theme="dark"] {
+    --bg-primary: #090d16;
+    --bg-secondary: #121826;
+    --bg-glass: rgba(18, 24, 38, 0.65);
+    --bg-glass-hover: rgba(18, 24, 38, 0.8);
+    --border-glass: rgba(255, 255, 255, 0.06);
+
+    --text-primary: #f8fafc;
+    --text-secondary: #cbd5e1;
+    --text-muted: #64748b;
+
+    --accent: #6366f1;
+    --accent-light: #a5b4fc;
+    --accent-hover: #4f46e5;
+    --accent-gradient: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+    --accent-shadow: rgba(99, 102, 241, 0.3);
+
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
+    --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+
+    /* Status Colors in Dark Mode */
+    --status-gray-bg: rgba(100, 116, 139, 0.15);
+    --status-gray-text: #94a3b8;
+    --status-gray-border: rgba(148, 163, 184, 0.2);
+
+    --status-red-bg: rgba(239, 68, 68, 0.15);
+    --status-red-text: #f87171;
+    --status-red-border: rgba(248, 113, 113, 0.25);
+
+    --status-yellow-bg: rgba(217, 119, 6, 0.15);
+    --status-yellow-text: #fbbf24;
+    --status-yellow-border: rgba(251, 191, 36, 0.25);
+
+    --status-green-bg: rgba(16, 185, 129, 0.15);
+    --status-green-text: #34d399;
+    --status-green-border: rgba(52, 211, 153, 0.25);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: var(--font-body);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    transition: background-color var(--transition-normal), color var(--transition-normal);
+    min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    font-weight: 600;
+}

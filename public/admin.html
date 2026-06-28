@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Finance and Audit Administration Dashboard">
+    <title>Financial Transparency & Administration Dashboard</title>
+    
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    
+    <style>
+        /* Specific Dashboard Layout Styles */
+        .hidden { display: none !important; }
+        
+        .widgets-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        @media (max-width: 768px) {
+            .widgets-section {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .widget-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-glass);
+            border-radius: var(--border-radius-md);
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .widget-header {
+            font-size: 1.1rem;
+            font-weight: 700;
+            border-bottom: 1px solid var(--border-glass);
+            padding-bottom: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .widget-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        /* Settings Grid config cards */
+        .settings-card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .setting-card {
+            border-top: 4px solid var(--accent) !important;
+        }
+
+        .setting-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .setting-card-body {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .setting-card-footer {
+            margin-top: 1.25rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid var(--border-glass);
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        /* Notif items */
+        .notif-list-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border-glass);
+        }
+
+        .notif-badge {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .notif-badge.type-submission { background-color: var(--accent); }
+        .notif-badge.type-approval { background-color: var(--status-green-text); }
+        .notif-badge.type-rejection { background-color: var(--status-red-text); }
+        .notif-badge.type-budgetchange { background-color: var(--status-yellow-text); }
+
+        .notif-title { font-weight: 600; font-size: 0.85rem; }
+        .notif-time { font-size: 0.75rem; color: var(--text-muted); }
+
+        /* Activity items */
+        .activity-list-item {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border-glass);
+            font-size: 0.85rem;
+        }
+
+        .activity-time {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        /* Report action card */
+        .report-type-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-glass);
+            border-radius: var(--border-radius-md);
+            padding: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all var(--transition-fast);
+        }
+
+        .report-type-card:hover {
+            border-color: var(--accent);
+        }
+
+        .report-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .report-title {
+            font-weight: 700;
+            font-size: 1.1rem;
+        }
+
+        .report-desc {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="layout-container">
+        
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="brand-section">
+                <div class="brand-logo">C</div>
+                <div class="brand-name">COMED23</div>
+            </div>
+
+            <ul class="menu-list">
+                <li class="menu-item active" data-tab="overview"><a href="#">📊 Overview</a></li>
+                <li class="menu-item" data-tab="students"><a href="#">🎓 Students Database</a></li>
+                <li class="menu-item" data-tab="settings"><a href="#">⚙️ Month Configs</a></li>
+                <li class="menu-item" data-tab="queue"><a href="#">📥 Verification Queue</a></li>
+                <li class="menu-item" data-tab="reports"><a href="#">📝 Reports Center</a></li>
+                <li class="menu-item" data-tab="audit"><a href="#">🔍 Audit Trail</a></li>
+            </ul>
+
+            <div class="sidebar-footer">
+                <div class="user-profile-widget">
+                    <div id="user-avatar-initials" class="user-avatar">AD</div>
+                    <div class="user-details">
+                        <span id="user-full-name" class="user-name">Loading...</span>
+                        <span id="user-role-name" class="user-role">Role</span>
+                    </div>
+                </div>
+                <button id="logout-btn" class="btn btn-secondary" style="width: 100%; justify-content: center;">
+                    Sign Out
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Dashboard View Panel -->
+        <main class="main-content">
+            
+            <!-- Global Content Header -->
+            <header class="content-header">
+                <div class="header-title-section">
+                    <h1 id="view-panel-title">Finance Dashboard</h1>
+                    <p id="view-panel-subtitle">Overview of collections and student logs</p>
+                </div>
+                <div class="header-actions">
+                    <button id="theme-toggle" class="theme-toggle-btn">🌙</button>
+                </div>
+            </header>
+
+            <!-- -----------------------------------------------------------------
+                 TAB 1: OVERVIEW PANEL
+                 ----------------------------------------------------------------- -->
+            <section id="overview-panel" class="view-panel">
+                
+                <!-- KPI metrics grids -->
+                <div class="metrics-grid">
+                    <div class="card kpi-card">
+                        <div class="kpi-header">Current Budget</div>
+                        <div id="metric-budget" class="kpi-value">0.00 THB</div>
+                    </div>
+                    <div class="card kpi-card">
+                        <div class="kpi-header">Collected Amount</div>
+                        <div id="metric-collected" class="kpi-value">0.00 THB</div>
+                    </div>
+                    <div class="card kpi-card">
+                        <div class="kpi-header">Outstanding Amount</div>
+                        <div id="metric-outstanding" class="kpi-value">0.00 THB</div>
+                    </div>
+                    <div class="card kpi-card">
+                        <div class="kpi-header">Pending Verification</div>
+                        <div id="metric-pending" class="kpi-value">0</div>
+                    </div>
+                    <div class="card kpi-card">
+                        <div class="kpi-header">Collection Rate</div>
+                        <div id="metric-rate" class="kpi-value">0%</div>
+                    </div>
+                </div>
+
+                <!-- Graphs sections -->
+                <div class="section-grid">
+                    <div class="card chart-card">
+                        <div class="widget-header">Monthly Collection Trend (Budget vs Collected)</div>
+                        <div id="monthly-trend-chart" class="chart-container"></div>
+                    </div>
+                    <div class="card chart-card">
+                        <div class="widget-header">Weekly Collection Trend (Active Open Months)</div>
+                        <div id="weekly-ratio-chart" class="chart-container"></div>
+                    </div>
+                </div>
+
+                <!-- Notification widgets & audit snippets -->
+                <div class="widgets-section">
+                    <div class="widget-card">
+                        <div class="widget-header">System Notifications</div>
+                        <ul id="notif-list-widget" class="widget-list">
+                            <!-- Items populated dynamically -->
+                        </ul>
+                    </div>
+                    <div class="widget-card">
+                        <div class="widget-header">Recent Audit Logs</div>
+                        <ul id="activity-list-widget" class="widget-list">
+                            <!-- Items populated dynamically -->
+                        </ul>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- -----------------------------------------------------------------
+                 TAB 2: STUDENTS DATABASE CRUD
+                 ----------------------------------------------------------------- -->
+            <section id="students-panel" class="view-panel hidden">
+                
+                <div class="card table-card">
+                    <div class="table-header-section">
+                        <div class="table-search-bar">
+                            <input type="text" id="student-search" class="search-input" placeholder="Search by Student ID, Name, Class...">
+                        </div>
+                        <button id="add-student-btn" class="btn btn-primary">+ Add Student</button>
+                    </div>
+
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Student ID</th>
+                                    <th>Full Name</th>
+                                    <th>Nickname</th>
+                                    <th>Class</th>
+                                    <th>Academic Year</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="students-table-body">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- -----------------------------------------------------------------
+                 TAB 3: MONTHLY CONFIGURATIONS
+                 ----------------------------------------------------------------- -->
+            <section id="settings-panel" class="view-panel hidden">
+                
+                <div class="table-header-section" style="padding-left: 0;">
+                    <h2>Independent Month Rules</h2>
+                    <button id="add-setting-btn" class="btn btn-primary">+ Create Month Config</button>
+                </div>
+
+                <div id="settings-grid" class="settings-card-grid">
+                    <!-- Populated dynamically -->
+                </div>
+
+            </section>
+
+            <!-- -----------------------------------------------------------------
+                 TAB 4: VERIFICATION QUEUE
+                 ----------------------------------------------------------------- -->
+            <section id="queue-panel" class="view-panel hidden">
+                
+                <div class="card table-card">
+                    <div class="table-header-section">
+                        <h2>Pending Slip Verification Queue</h2>
+                    </div>
+
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Submission ID</th>
+                                    <th>Student Details</th>
+                                    <th>Payment Month</th>
+                                    <th>Weeks Selection</th>
+                                    <th>Amount Paid</th>
+                                    <th>Submission Time</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="queue-table-body">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </section>
+
+            <!-- -----------------------------------------------------------------
+                 TAB 5: REPORTS CENTER
+                 ----------------------------------------------------------------- -->
+            <section id="reports-panel" class="view-panel hidden">
+                
+                <div class="card" style="margin-bottom: 2rem;">
+                    <h3 style="margin-bottom: 1rem;">Filter Report Exports</h3>
+                    <div class="form-group" style="max-width: 300px;">
+                        <label for="report-month-setting">Filter by Month (Required for Monthly report)</label>
+                        <select id="report-month-setting" class="form-control">
+                            <option value="">Select Month</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+                    
+                    <div class="report-type-card">
+                        <div class="report-info">
+                            <div class="report-title">Monthly Payment Report</div>
+                            <div class="report-desc">Export students payment grid for the selected month detailing week 1-5 validation status.</div>
+                        </div>
+                        <button class="btn btn-secondary" onclick="triggerReportExport('monthly')">Export CSV</button>
+                    </div>
+
+                    <div class="report-type-card">
+                        <div class="report-info">
+                            <div class="report-title">Student Overall Ledger</div>
+                            <div class="report-desc">Export all students with total expected payments, amounts verified, and total outstanding.</div>
+                        </div>
+                        <button class="btn btn-secondary" onclick="triggerReportExport('student')">Export CSV</button>
+                    </div>
+
+                    <div class="report-type-card">
+                        <div class="report-info">
+                            <div class="report-title">Outstanding / Overdue Balances</div>
+                            <div class="report-desc">Export specific listing of overdue fees sorted by students, showing total balances.</div>
+                        </div>
+                        <button class="btn btn-secondary" onclick="triggerReportExport('outstanding')">Export CSV</button>
+                    </div>
+
+                    <div class="report-type-card">
+                        <div class="report-info">
+                            <div class="report-title">Verification Logs Trail</div>
+                            <div class="report-desc">Export chronological verification operations including staff review statements.</div>
+                        </div>
+                        <button class="btn btn-secondary" onclick="triggerReportExport('verification')">Export CSV</button>
+                    </div>
+
+                    <div class="report-type-card">
+                        <div class="report-info">
+                            <div class="report-title">Budget Allocation Summary</div>
+                            <div class="report-desc">Export complete financial summary aggregated by Month-Year settings.</div>
+                        </div>
+                        <button class="btn btn-secondary" onclick="triggerReportExport('budget')">Export CSV</button>
+                    </div>
+
+                </div>
+
+            </section>
+
+            <!-- -----------------------------------------------------------------
+                 TAB 6: AUDIT TRAIL LOGS EXPLORER
+                 ----------------------------------------------------------------- -->
+            <section id="audit-panel" class="view-panel hidden">
+                
+                <div class="card table-card">
+                    <div class="table-header-section">
+                        <h2>Immutable Operations Audit Logs</h2>
+                    </div>
+
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Timestamp</th>
+                                    <th>Staff Email</th>
+                                    <th>Operation</th>
+                                    <th>Table Key</th>
+                                    <th>Device Context</th>
+                                    <th>Client IP</th>
+                                </tr>
+                            </thead>
+                            <tbody id="audit-table-body">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <!-- MODAL: Student Creator/Editor Dialogue -->
+    <div id="student-modal" class="modal-backdrop">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="student-modal-title">Add New Student</h2>
+                <button class="modal-close-btn" onclick="closeModal('student-modal')">&times;</button>
+            </div>
+            <form id="student-form">
+                <input type="hidden" id="form-student-id-field">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="student-code">Student ID (Format: 69xxxxxxxx-x)</label>
+                        <input type="text" id="student-code" class="form-control" placeholder="e.g. 6901002043-1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="student-fullname">Full Name</label>
+                        <input type="text" id="student-fullname" class="form-control" placeholder="e.g. John Doe" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="student-nickname">Nickname</label>
+                        <input type="text" id="student-nickname" class="form-control" placeholder="e.g. Johnny">
+                    </div>
+                    <div class="form-group">
+                        <label for="student-class">Class</label>
+                        <input type="text" id="student-class" class="form-control" placeholder="e.g. Grade 12/A" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="student-year">Academic Year</label>
+                        <input type="text" id="student-year" class="form-control" placeholder="e.g. 2026" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="student-status">Status</label>
+                        <select id="student-status" class="form-control">
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('student-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Student</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: Month Config Settings Creator/Editor Dialogue -->
+    <div id="setting-modal" class="modal-backdrop">
+        <div class="modal-content" style="max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h2 id="setting-modal-title">Create Month Config</h2>
+                <button class="modal-close-btn" onclick="closeModal('setting-modal')">&times;</button>
+            </div>
+            <form id="setting-form">
+                <input type="hidden" id="form-setting-id-field">
+                <div class="modal-body">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label for="setting-month">Month (1-12)</label>
+                            <input type="number" id="setting-month" class="form-control" min="1" max="12" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="setting-year">Year</label>
+                            <input type="number" id="setting-year" class="form-control" min="2000" required>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label for="setting-fee">Weekly Fee (THB)</label>
+                            <input type="number" id="setting-fee" class="form-control" min="0" step="0.01" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="setting-weeks">Number of Weeks (1-5)</label>
+                            <input type="number" id="setting-weeks" class="form-control" min="1" max="5" required>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label for="setting-open">Open Date</label>
+                            <input type="date" id="setting-open" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="setting-close">Close Date</label>
+                            <input type="date" id="setting-close" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="setting-status-select">Status</label>
+                        <select id="setting-status-select" class="form-control">
+                            <option value="Closed">Closed</option>
+                            <option value="Open">Open</option>
+                            <option value="Archived">Archived</option>
+                        </select>
+                    </div>
+
+                    <!-- Dynamic Weekly Due dates fields container -->
+                    <div id="due-dates-dynamic-fields" style="display: flex; flex-direction: column; gap: 0.75rem; border-top: 1px solid var(--border-glass); padding-top: 1rem;">
+                        <!-- Generated by JS dynamically -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('setting-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Configuration</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: Slip Review & Verification decision popup -->
+    <div id="verify-modal" class="modal-backdrop">
+        <div class="modal-content" style="max-width: 800px; display: flex; flex-direction: column; max-height: 90vh;">
+            <div class="modal-header">
+                <h2>Slip Verification Review</h2>
+                <button class="modal-close-btn" onclick="closeModal('verify-modal')">&times;</button>
+            </div>
+            
+            <div class="modal-body" style="flex: 1; overflow-y: auto; display: grid; grid-template-columns: 1.2fr 1fr; gap: 1.5rem;">
+                
+                <!-- Left: Slip Preview area -->
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div style="font-weight: 600; font-size: 0.95rem;">Payment Document Copy:</div>
+                    <div id="verify-slip-preview" style="background-color: var(--bg-primary); border-radius: var(--border-radius-sm); min-height: 350px; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                        <!-- Render image / PDF -->
+                    </div>
+                    <a id="verify-download-btn" href="#" download class="btn btn-secondary" style="justify-content: center; width: 100%;">
+                        📥 Download Raw Slip File
+                    </a>
+                </div>
+
+                <!-- Right: Details, Comments and Actions -->
+                <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+                    <div>
+                        <div style="font-size: 0.85rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Student</div>
+                        <div id="verify-student-name" style="font-size: 1.25rem; font-weight: 800;">Student Name</div>
+                        <div id="verify-student-code" style="color: var(--text-secondary); font-size: 0.9rem;">6900000000</div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; border-top: 1px solid var(--border-glass); padding-top: 1rem;">
+                        <div>
+                            <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Amount Paid</div>
+                            <div id="verify-amount" style="font-size: 1.25rem; font-weight: 800; color: var(--accent);">0.00 THB</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase;">Weeks Counted</div>
+                            <div id="verify-weeks" style="font-weight: 600;">Week 1, Week 2</div>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="border-top: 1px solid var(--border-glass); padding-top: 1rem;">
+                        <label for="verify-comments">Reviewer Statement / Rejection Comment</label>
+                        <textarea id="verify-comments" class="form-control" rows="4" placeholder="Enter comments or explanation statement (Required for Rejections)"></textarea>
+                    </div>
+
+                    <div style="margin-top: auto; display: flex; flex-direction: column; gap: 0.75rem;">
+                        <div style="display: flex; gap: 0.75rem;">
+                            <button class="btn btn-danger decision-btn" data-action="Reject" style="flex: 1; justify-content: center; padding: 0.85rem;">
+                                Reject Slip
+                            </button>
+                            <button class="btn btn-primary decision-btn" data-action="Approve" style="flex: 1.5; justify-content: center; padding: 0.85rem;">
+                                Approve Slip
+                            </button>
+                        </div>
+                        <button class="btn btn-secondary decision-btn" data-action="RequestInfo" style="justify-content: center; padding: 0.75rem;">
+                            Request Info / Comment Only
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ApexCharts JS CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <!-- Supabase JS Client SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Client config & helpers -->
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <!-- Dashboard Controller -->
+    <script src="js/dashboard.js" defer></script>
+</body>
+</html>

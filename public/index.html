@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Student Payment Verification and Transparency Portal">
+    <title>COMED23 - Student Payment & Financial Transparency Portal</title>
+    
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    
+    <style>
+        /* Specific Styles for Public Portal */
+        .portal-container {
+            max-width: 1000px;
+            margin: 3rem auto;
+            padding: 0 1.5rem;
+        }
+        
+        .portal-header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .portal-header h1 {
+            font-size: 2.25rem;
+            background: var(--accent-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        .portal-header p {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+
+        .verification-card {
+            max-width: 480px;
+            margin: 0 auto;
+            background: var(--bg-glass);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-glass);
+            padding: 2.5rem;
+            border-radius: var(--border-radius-md);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Monthly tabs list */
+        .months-tab-wrapper {
+            display: flex;
+            overflow-x: auto;
+            gap: 0.75rem;
+            padding: 0.5rem 0;
+            margin-bottom: 2rem;
+            scrollbar-width: thin;
+        }
+
+        .month-tab {
+            flex: 0 0 auto;
+            padding: 0.75rem 1.5rem;
+            border-radius: var(--border-radius-sm);
+            border: 1px solid var(--border-glass);
+            background-color: var(--bg-secondary);
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 110px;
+            position: relative;
+            transition: all var(--transition-fast);
+        }
+
+        .month-tab.active {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px var(--accent-shadow);
+        }
+
+        .month-tab-name {
+            font-weight: 700;
+            font-size: 0.95rem;
+        }
+
+        .month-tab-year {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .month-tab .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            position: absolute;
+            bottom: 6px;
+        }
+
+        /* Color indicators for Month Tabs */
+        .tab-color-green { background-color: var(--status-green-bg); color: var(--status-green-text); }
+        .tab-color-green .status-dot { background-color: var(--status-green-text); }
+        
+        .tab-color-yellow { background-color: var(--status-yellow-bg); color: var(--status-yellow-text); }
+        .tab-color-yellow .status-dot { background-color: var(--status-yellow-text); }
+        
+        .tab-color-red { background-color: var(--status-red-bg); color: var(--status-red-text); }
+        .tab-color-red .status-dot { background-color: var(--status-red-text); }
+        
+        .tab-color-gray { background-color: var(--status-gray-bg); color: var(--status-gray-text); }
+        .tab-color-gray .status-dot { background-color: var(--status-gray-text); }
+
+        /* Weekly statuses */
+        .weeks-status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.25rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .week-status-card {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border-glass);
+            border-radius: var(--border-radius-md);
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            transition: all var(--transition-fast);
+        }
+
+        .border-color-green { border-left: 4px solid var(--status-green-text); }
+        .border-color-yellow { border-left: 4px solid var(--status-yellow-text); }
+        .border-color-red { border-left: 4px solid var(--status-red-text); }
+        .border-color-gray { border-left: 4px solid var(--status-gray-text); }
+
+        .week-number {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .week-amount {
+            font-size: 1.5rem;
+            font-weight: 800;
+            font-family: var(--font-heading);
+        }
+
+        .week-due {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        /* Payment form styling */
+        .payment-form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .payment-form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .form-mode-selectors {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .mode-label {
+            flex: 1;
+            padding: 0.75rem;
+            border: 1px solid var(--border-glass);
+            border-radius: var(--border-radius-sm);
+            text-align: center;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            background-color: var(--bg-secondary);
+        }
+
+        .mode-label input {
+            accent-color: var(--accent);
+        }
+
+        .week-checkboxes-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            max-height: 280px;
+            overflow-y: auto;
+            padding-right: 0.5rem;
+        }
+
+        .checkbox-label-card {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border-glass);
+            border-radius: var(--border-radius-sm);
+            background-color: var(--bg-primary);
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .checkbox-label-card input {
+            display: none;
+        }
+
+        .checkbox-box {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--text-muted);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all var(--transition-fast);
+        }
+
+        .checkbox-label-card input:checked + .checkbox-box {
+            background-color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .check-indicator {
+            color: white;
+            font-size: 0.8rem;
+            display: none;
+        }
+
+        .checkbox-label-card input:checked + .checkbox-box .check-indicator {
+            display: block;
+        }
+
+        .checkbox-text {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .checkbox-week {
+            font-weight: 600;
+        }
+
+        .checkbox-subtext {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* File Upload styling */
+        .upload-dropzone {
+            border: 2px dashed var(--border-glass);
+            border-radius: var(--border-radius-md);
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            background-color: var(--bg-primary);
+            transition: all var(--transition-fast);
+            position: relative;
+        }
+
+        .upload-dropzone:hover {
+            border-color: var(--accent);
+        }
+
+        .upload-icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .slip-preview-img {
+            max-width: 100%;
+            max-height: 220px;
+            object-fit: contain;
+            border-radius: var(--border-radius-sm);
+        }
+
+        .slip-preview-pdf {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .pdf-icon {
+            font-size: 3rem;
+        }
+
+        .pdf-filename {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        /* Success receipt modal overrides */
+        .receipt-card {
+            border: 1px dashed var(--border-glass);
+            border-radius: var(--border-radius-sm);
+            padding: 1.5rem;
+            background-color: var(--bg-primary);
+            font-family: monospace;
+            font-size: 0.85rem;
+            margin-top: 1rem;
+        }
+
+        .receipt-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+
+        .receipt-row.total {
+            border-top: 1px solid var(--border-glass);
+            padding-top: 0.5rem;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="portal-container">
+        
+        <header class="portal-header">
+            <h1>COMED23 Student Payment Management</h1>
+            <p>Transparency, Traceability, and Financial Auditing</p>
+        </header>
+
+        <!-- Step 1: Public Entry Student Verification -->
+        <section id="step-1-section" class="verification-card">
+            <h2 style="margin-bottom: 1.5rem; text-align: center; font-size: 1.5rem;">Access Portal</h2>
+            <form id="verification-form">
+                <div class="form-group">
+                    <label for="student-id">Student ID</label>
+                    <input type="text" id="student-id" class="form-control" placeholder="69xxxxxxxx-x" required>
+                </div>
+                <div class="form-group" style="margin-top: 1.25rem;">
+                    <label for="full-name">Full Name (As registered)</label>
+                    <input type="text" id="full-name" class="form-control" placeholder="Enter Full Name" required>
+                </div>
+                <button type="submit" id="validate-btn" class="btn btn-primary" style="width: 100%; margin-top: 2rem; justify-content: center;">
+                    Verify and Continue
+                </button>
+            </form>
+        </section>
+
+        <!-- Step 2-6: Interactive Student Dashboard -->
+        <section id="portal-dashboard" class="hidden">
+            
+            <div class="card" style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h2 id="student-name-display" style="font-size: 1.5rem; font-weight: 700;">Student Name</h2>
+                    <p id="student-class-display" style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.25rem;">Class metadata</p>
+                </div>
+                <button id="logout-portal-btn" class="btn btn-secondary">Logout Session</button>
+            </div>
+
+            <!-- Month Tabs List -->
+            <div id="months-tab-container" class="months-tab-wrapper">
+                <!-- Tabs rendered dynamically -->
+            </div>
+
+            <!-- Selected Month Weekly status Grid -->
+            <h3 style="margin-bottom: 1rem; font-size: 1.25rem;">Payment status</h3>
+            <div id="weeks-grid-container" class="weeks-status-grid">
+                <!-- Weeks rendered dynamically -->
+            </div>
+
+            <!-- Payment Submission Form -->
+            <div id="form-status-message" class="card text-center text-muted hidden" style="padding: 2rem; font-weight: 600;">
+                <!-- Status message rendered dynamically -->
+            </div>
+
+            <div id="payment-form-card" class="card">
+                <h3 style="margin-bottom: 1.5rem; font-size: 1.25rem; border-bottom: 1px solid var(--border-glass); padding-bottom: 0.75rem;">
+                    Submit Payment Slip
+                </h3>
+                
+                <div class="payment-form-grid">
+                    
+                    <!-- Left: Weeks Selection -->
+                    <div>
+                        <h4 style="margin-bottom: 1rem; font-size: 1rem;">1. Choose Payment Option</h4>
+                        
+                        <div class="form-mode-selectors">
+                            <label class="mode-label">
+                                <input type="radio" name="payment-mode" id="mode-remaining" checked>
+                                <span>Pay Remaining Weeks</span>
+                            </label>
+                            <label class="mode-label">
+                                <input type="radio" name="payment-mode" id="mode-individual">
+                                <span>Pay Individual Week</span>
+                            </label>
+                        </div>
+
+                        <div id="week-checkboxes-container" class="week-checkboxes-grid">
+                            <!-- Checkboxes dynamically rendered -->
+                        </div>
+                    </div>
+
+                    <!-- Right: File Upload & Calculation -->
+                    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                        <div>
+                            <h4 style="margin-bottom: 1rem; font-size: 1rem;">2. Upload Slip Copy</h4>
+                            <label class="upload-dropzone" for="slip-file">
+                                <input type="file" id="slip-file" style="display: none;" accept="image/png, image/jpeg, image/jpg, application/pdf">
+                                <div id="file-preview-container">
+                                    <div class="upload-icon">📤</div>
+                                    <div style="font-weight: 600;">Click to select file</div>
+                                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">Supported: PNG, JPG, JPEG, PDF (Max 5MB)</div>
+                                </div>
+                            </label>
+                        </div>
+
+                        <!-- Price calculation summary -->
+                        <div style="background-color: var(--bg-primary); padding: 1.25rem; border-radius: var(--border-radius-sm); border: 1px solid var(--border-glass);">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.9rem;">
+                                <span>Selected:</span>
+                                <span id="selected-weeks-summary" style="font-weight: 700;">None</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; border-top: 1px solid var(--border-glass); padding-top: 0.5rem; font-weight: 800; font-size: 1.2rem;">
+                                <span>Total Amount:</span>
+                                <span id="total-amount-display" style="color: var(--accent);">0.00 THB</span>
+                            </div>
+                        </div>
+
+                        <button id="submit-slip-btn" class="btn btn-primary" style="justify-content: center; padding: 1rem;" disabled>
+                            Submit Payment Slip
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+
+        </section>
+
+    </div>
+
+    <!-- Success Modal Receipt Popup -->
+    <div id="success-modal" class="modal-backdrop">
+        <div class="modal-content" style="max-width: 480px;">
+            <div class="modal-header">
+                <h2 style="color: var(--status-green-text); display: flex; align-items: center; gap: 0.5rem;">
+                    <span>✓</span> Submission Successful
+                </h2>
+                <button id="modal-close-btn" class="modal-close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Your payment slip has been uploaded successfully and is queued for verification by the finance team.</p>
+                
+                <div class="receipt-card">
+                    <div class="receipt-row">
+                        <span>Receipt ID:</span>
+                        <span id="modal-receipt-id">SS-XXXXXX</span>
+                    </div>
+                    <div class="receipt-row">
+                        <span>Weeks Paid:</span>
+                        <span id="modal-receipt-weeks">Week 1, Week 2</span>
+                    </div>
+                    <div class="receipt-row">
+                        <span>Timestamp:</span>
+                        <span id="modal-receipt-time">2026-06-29 08:30:15</span>
+                    </div>
+                    <div class="receipt-row">
+                        <span>Verification Status:</span>
+                        <span style="color: var(--status-yellow-text); font-weight: bold;">PENDING</span>
+                    </div>
+                    <div class="receipt-row total">
+                        <span>Total Paid:</span>
+                        <span id="modal-receipt-amount">520.00 THB</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="modal-dismiss-btn" class="btn btn-primary" style="width: 100%; justify-content: center;">Close Portal Receipt</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Global Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Supabase JS CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Core Configurations -->
+    <script src="js/config.js"></script>
+    <!-- Portal Logic -->
+    <script src="js/portal.js" defer></script>
+</body>
+</html>
