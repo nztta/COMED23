@@ -25,18 +25,6 @@ function verifySupabaseJWT(string $token): ?array {
     $config = getSupabaseConfig();
     $secret = $config['jwt_secret'];
 
-    if (empty($secret)) {
-        // Fallback for development if secret isn't configured
-        // In development we should warn, but in production this is a hard error
-        if (getenv('APP_ENV') === 'development') {
-            $parts = explode('.', $token);
-            if (count($parts) === 3) {
-                return json_decode(base64UrlDecode($parts[1]), true);
-            }
-        }
-        return null;
-    }
-
     $tokenParts = explode('.', $token);
     if (count($tokenParts) !== 3) {
         return null;
@@ -50,22 +38,46 @@ function verifySupabaseJWT(string $token): ?array {
         return null;
     }
 
-    // Assert algorithm is HS256
-    if (!isset($header['alg']) || $header['alg'] !== 'HS256') {
-        return null;
-    }
-
-    // Verify token expiry
+    // Verify token expiry locally first to avoid unnecessary network calls
     if (isset($payload['exp']) && $payload['exp'] < time()) {
         return null;
     }
 
-    // Verify signature
-    $dataToSign = $tokenParts[0] . '.' . $tokenParts[1];
-    $rawSignature = hash_hmac('sha256', $dataToSign, $secret, true);
-    $expectedSignature = str_replace('=', '', strtr(base64_encode($rawSignature), '+/', '-_'));
+    // 1. Try local HS256 signature verification if the token uses HS256
+    if (isset($header['alg']) && $header['alg'] === 'HS256' && !empty($secret)) {
+        $dataToSign = $tokenParts[0] . '.' . $tokenParts[1];
+        $rawSignature = hash_hmac('sha256', $dataToSign, $secret, true);
+        $expectedSignature = str_replace('=', '', strtr(base64_encode($rawSignature), '+/', '-_'));
+        if (hash_equals($expectedSignature, $signature)) {
+            return $payload;
+        }
+    }
 
-    if (hash_equals($expectedSignature, $signature)) {
+    // 2. Fallback for ES256/RS256: Validate using Supabase Auth API
+    // Check session cache to avoid redundant API requests
+    if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
+        session_start();
+    }
+    if (isset($_SESSION['verified_jwt_tokens'][$token])) {
+        return $_SESSION['verified_jwt_tokens'][$token];
+    }
+
+    // Call Supabase /auth/v1/user endpoint to verify token validity
+    $userUrl = $config['url'] . '/auth/v1/user';
+    $ch = curl_init($userUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'apikey: ' . $config['anon_key'],
+        'Authorization: Bearer ' . $token
+    ]);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 5); // 5 seconds timeout limit
+
+    $res = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode === 200) {
+        $_SESSION['verified_jwt_tokens'][$token] = $payload;
         return $payload;
     }
 
@@ -81,6 +93,29 @@ function getCurrentUser(): ?array {
     $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
 
     if (empty($authHeader) || !preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
+        // Fallback to PHP Session for students and guests
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        if (isset($_SESSION['student_id'])) {
+            try {
+                $db = getDatabaseConnection();
+                $stmt = $db->prepare("
+                    SELECT *, COALESCE(role, 'นักศึกษา') as role_name 
+                    FROM students 
+                    WHERE id = :id AND status = 'Active' AND is_deleted = false
+                ");
+                $stmt->execute(['id' => $_SESSION['student_id']]);
+                $student = $stmt->fetch();
+                if ($student) {
+                    $student['role_name'] = $student['role_name'] ?? 'นักศึกษา';
+                    unset($student['password_hash']); // Strip password hash for safety
+                    return $student;
+                }
+            } catch (Exception $e) {
+                return null;
+            }
+        }
         return null;
     }
 
@@ -112,15 +147,23 @@ function getCurrentUser(): ?array {
 
         // If user doesn't exist in our table yet but has a valid JWT,
         // it means they signed up via Supabase Auth but haven't been synchronized.
-        // For security, if they are not in the users table, we default to the Viewer role
-        // or check if we need to auto-create them. Let's auto-create them as Viewer if not exists.
+        // For security, if they are not in the users table, we default to the 'นักศึกษา' (Student) role
+        // or check if we need to auto-create them. Let's auto-create them as 'นักศึกษา' if not exists.
         if (getenv('APP_ENV') === 'development' || true) {
-            // Fetch default role (Viewer)
-            $roleStmt = $db->prepare("SELECT id FROM roles WHERE name = 'Viewer'");
+            // Fetch default role prioritizing 'นักศึกษา', then 'Student', and fallback to 'Viewer'
+            $roleStmt = $db->prepare("
+                SELECT id FROM roles 
+                WHERE name = 'นักศึกษา' OR name = 'Student' OR name = 'Viewer' 
+                ORDER BY CASE name 
+                    WHEN 'นักศึกษา' THEN 1 
+                    WHEN 'Student' THEN 2 
+                    ELSE 3 
+                END LIMIT 1
+            ");
             $roleStmt->execute();
-            $viewerRoleId = $roleStmt->fetchColumn();
+            $defaultRoleId = $roleStmt->fetchColumn();
 
-            if ($viewerRoleId) {
+            if ($defaultRoleId) {
                 $insertStmt = $db->prepare("
                     INSERT INTO users (id, email, role_id, full_name, status)
                     VALUES (:id, :email, :role_id, :full_name, 'Active')
@@ -129,7 +172,7 @@ function getCurrentUser(): ?array {
                 $insertStmt->execute([
                     'id' => $userId,
                     'email' => $email,
-                    'role_id' => $viewerRoleId,
+                    'role_id' => $defaultRoleId,
                     'full_name' => $jwtPayload['user_metadata']['full_name'] ?? explode('@', $email)[0]
                 ]);
 
@@ -143,6 +186,28 @@ function getCurrentUser(): ?array {
     }
 
     return null;
+}
+
+/**
+ * Helper to check role permission including Thai mapped roles
+ */
+function checkRolePermission(string $userRole, array $allowedRoles): bool {
+    $expanded = [];
+    foreach ($allowedRoles as $role) {
+        $expanded[] = $role;
+        if ($role === 'Admin') {
+            $expanded[] = 'ฝ่ายจัดการระบบ';
+            $expanded[] = 'หัวหน้า';
+        } elseif ($role === 'Finance') {
+            $expanded[] = 'เหรัญญิก';
+            $expanded[] = 'เลขานุการ';
+        } elseif ($role === 'Auditor') {
+            $expanded[] = 'รองหัวหน้า';
+        } elseif ($role === 'Student') {
+            $expanded[] = 'นักศึกษา';
+        }
+    }
+    return in_array($userRole, $expanded);
 }
 
 /**
@@ -161,9 +226,10 @@ function requireRole(array $allowedRoles): array {
         sendError('Unauthorized access. Valid auth token required.', 401);
     }
 
-    if (!in_array($user['role_name'], $allowedRoles)) {
+    if (!checkRolePermission($user['role_name'], $allowedRoles)) {
         sendError('Forbidden. Insufficient permissions.', 403);
     }
 
     return $user;
 }
+

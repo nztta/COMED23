@@ -67,6 +67,9 @@ if ($method === 'POST') {
     $dueDatePerWeek = $input['due_dates'] ?? []; // Array of dates
     $closeDate = $input['close_date'] ?? null;
     $status = $input['status'] ?? 'Closed'; // 'Open', 'Closed', 'Archived'
+    $title = $input['title'] ?? '';
+    $description = $input['description'] ?? '';
+    $customMembers = $input['custom_members'] ?? null; // Array of student UUIDs or null
 
     // Validate inputs
     if (!$month || $month < 1 || $month > 12) {
@@ -100,6 +103,20 @@ if ($method === 'POST') {
         $oldValue = null;
         $newValue = null;
 
+        // Custom members encoding
+        $customMembersJson = is_array($customMembers) ? json_encode($customMembers) : null;
+        
+        // Resolve list of target student IDs
+        $targetStudents = [];
+        if (is_array($customMembers) && !empty($customMembers)) {
+            $targetStudents = $customMembers;
+        } else {
+            // Fetch all active students
+            $studentsStmt = $db->prepare("SELECT id FROM students WHERE status = 'Active' AND is_deleted = false");
+            $studentsStmt->execute();
+            $targetStudents = $studentsStmt->fetchAll(PDO::FETCH_COLUMN);
+        }
+
         if ($id) {
             // Update Existing Configuration
             $stmt = $db->prepare("SELECT * FROM monthly_payment_settings WHERE id = :id AND is_deleted = false");
@@ -116,7 +133,8 @@ if ($method === 'POST') {
                 UPDATE monthly_payment_settings 
                 SET month = :month, year = :year, weekly_fee = :weekly_fee, number_of_weeks = :number_of_weeks, 
                     open_date = :open_date, due_dates = :due_dates::DATE[], close_date = :close_date, status = :status,
-                    updated_by = :updated_by
+                    title = :title, description = :description, custom_members = :custom_members,
+                    updated_by = :updated_by, updated_at = NOW()
                 WHERE id = :id
             ");
             $updateStmt->execute([
@@ -129,6 +147,9 @@ if ($method === 'POST') {
                 'due_dates' => $pgDueDates,
                 'close_date' => $closeDate,
                 'status' => $status,
+                'title' => $title,
+                'description' => $description,
+                'custom_members' => $customMembersJson,
                 'updated_by' => $user['id']
             ]);
 
@@ -152,13 +173,15 @@ if ($method === 'POST') {
             if ($oldValue['status'] !== $status) {
                 // Add system notification
                 $notifStmt = $db->prepare("
-                    INSERT INTO notifications (title, message, type, created_by)
-                    VALUES (:title, :message, :type, :created_by)
+                    INSERT INTO notifications (title, message, type, setting_id, created_by)
+                    VALUES (:title, :message, :type, :setting_id, :created_by)
                 ");
+                $monthNameEn = date("F", mktime(0, 0, 0, $month, 1));
                 $notifStmt->execute([
-                    'title' => "Month Setting Status Changed",
-                    'message' => "The status for " . date("F", mktime(0, 0, 0, $month, 1)) . " $year was changed to '$status'.",
+                    'title' => "สถานะของรอบบิลถูกเปลี่ยนเป็น {$status}",
+                    'message' => "รายการเรียกเก็บเงิน '{$title}' ถูกเปลี่ยนสถานะเป็น '{$status}'",
                     'type' => $status === 'Closed' ? 'MonthClosed' : 'BudgetChange',
+                    'setting_id' => $id,
                     'created_by' => $user['id']
                 ]);
             }
@@ -172,7 +195,9 @@ if ($method === 'POST') {
                 'open_date' => $openDate,
                 'due_dates' => $dueDatePerWeek,
                 'close_date' => $closeDate,
-                'status' => $status
+                'status' => $status,
+                'title' => $title,
+                'description' => $description
             ];
 
             logAudit($user['id'], $user['email'], 'edit_payment_setting', 'monthly_payment_settings', $id, $oldValue, $newValue);
@@ -184,14 +209,14 @@ if ($method === 'POST') {
             $checkStmt->execute(['month' => $month, 'year' => $year]);
             if ($checkStmt->fetch()) {
                 $db->rollBack();
-                sendError('A payment configuration for this month and year already exists.');
+                sendError('รายการเรียกเก็บเงินของเดือนและปีนี้มีอยู่แล้วในระบบ');
             }
 
             $insertStmt = $db->prepare("
                 INSERT INTO monthly_payment_settings (
-                    month, year, weekly_fee, number_of_weeks, open_date, due_dates, close_date, status, created_by, updated_by
+                    month, year, weekly_fee, number_of_weeks, open_date, due_dates, close_date, status, title, description, custom_members, created_by, updated_by
                 ) VALUES (
-                    :month, :year, :weekly_fee, :number_of_weeks, :open_date, :due_dates::DATE[], :close_date, :status, :created_by, :updated_by
+                    :month, :year, :weekly_fee, :number_of_weeks, :open_date, :due_dates::DATE[], :close_date, :status, :title, :description, :custom_members, :created_by, :updated_by
                 ) RETURNING id
             ");
             $insertStmt->execute([
@@ -203,17 +228,16 @@ if ($method === 'POST') {
                 'due_dates' => $pgDueDates,
                 'close_date' => $closeDate,
                 'status' => $status,
+                'title' => $title,
+                'description' => $description,
+                'custom_members' => $customMembersJson,
                 'created_by' => $user['id'],
                 'updated_by' => $user['id']
             ]);
 
             $id = $insertStmt->fetchColumn();
 
-            // Populate weekly records for all existing active students for this new setting
-            $studentsStmt = $db->prepare("SELECT id FROM students WHERE status = 'Active' AND is_deleted = false");
-            $studentsStmt->execute();
-            $activeStudents = $studentsStmt->fetchAll(PDO::FETCH_COLUMN);
-
+            // Populate weekly records for targeted students
             $insertRecordStmt = $db->prepare("
                 INSERT INTO weekly_payment_records (
                     student_id, month_setting_id, week_number, status, amount, created_by, updated_by
@@ -222,7 +246,7 @@ if ($method === 'POST') {
                 ) ON CONFLICT (student_id, month_setting_id, week_number) DO NOTHING
             ");
 
-            foreach ($activeStudents as $studentId) {
+            foreach ($targetStudents as $studentId) {
                 for ($week = 1; $week <= $numberOfWeeks; $week++) {
                     $insertRecordStmt->execute([
                         'student_id' => $studentId,
@@ -235,17 +259,46 @@ if ($method === 'POST') {
                 }
             }
 
-            // Create notification
+            // Create notification (Global/Student specific depends on targets)
             $notifStmt = $db->prepare("
-                INSERT INTO notifications (title, message, type, created_by)
-                VALUES (:title, :message, :type, :created_by)
+                INSERT INTO notifications (title, message, type, setting_id, student_id, author_name, target_page, created_by)
+                VALUES (:title, :message, 'BudgetChange', :setting_id, :student_id, :author, 'student.html', :created_by)
             ");
-            $notifStmt->execute([
-                'title' => "New Month Setting Created",
-                'message' => "Payment configuration for " . date("F", mktime(0, 0, 0, $month, 1)) . " $year has been set with a fee of $weeklyFee THB/week.",
-                'type' => 'BudgetChange',
-                'created_by' => $user['id']
-            ]);
+            
+            $thMonthNames = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+            $monthText = $thMonthNames[$month - 1] . ' ' . $year;
+
+            if (is_array($customMembers) && !empty($customMembers)) {
+                // Targeted notifications
+                foreach ($customMembers as $studentId) {
+                    $notifStmt->execute([
+                        'title' => "คุณมีรายการเรียกเก็บเงินใหม่: {$title}",
+                        'message' => "รายการเรียกเก็บเงินรอบบิลเดือน {$monthText} ค่าห้องสัปดาห์ละ {$weeklyFee} บาท จำนวน {$numberOfWeeks} สัปดาห์",
+                        'setting_id' => $id,
+                        'student_id' => $studentId,
+                        'author' => $user['full_name'],
+                        'created_by' => $user['id']
+                    ]);
+                }
+            } else {
+                // Global notification for all students
+                $notifStmt->execute([
+                    'title' => "เปิดรอบบิลเรียกเก็บเงินใหม่: {$title}",
+                    'message' => "รายการเรียกเก็บเงินรอบบิลเดือน {$monthText} ค่าห้องสัปดาห์ละ {$weeklyFee} บาท จำนวน {$numberOfWeeks} สัปดาห์",
+                    'setting_id' => $id,
+                    'student_id' => null,
+                    'author' => $user['full_name'],
+                    'created_by' => $user['id']
+                ]);
+            }
+
+            // Discord Notification
+            require_once __DIR__ . '/helpers/discord.php';
+            sendDiscordNotification(
+                "New Billing Created / มีรายการเรียกเก็บเงินใหม่",
+                "หัวข้อ: **{$title}**\nรายละเอียด: {$description}\nรอบบิลเดือน: **{$monthText}**\nค่าบริการ: **{$weeklyFee}** บาท/สัปดาห์ (ยอดรวมเป้าหมายรายคน: " . ($weeklyFee * $numberOfWeeks) . " บาท)\nจำนวนผู้ที่ต้องชำระ: **" . count($targetStudents) . "** คน",
+                "3066993"
+            );
 
             $newValue = [
                 'id' => $id,
@@ -256,7 +309,9 @@ if ($method === 'POST') {
                 'open_date' => $openDate,
                 'due_dates' => $dueDatePerWeek,
                 'close_date' => $closeDate,
-                'status' => $status
+                'status' => $status,
+                'title' => $title,
+                'description' => $description
             ];
 
             logAudit($user['id'], $user['email'], 'create_payment_setting', 'monthly_payment_settings', $id, null, $newValue);
@@ -270,6 +325,83 @@ if ($method === 'POST') {
             $db->rollBack();
         }
         sendError('Failed to save configuration: ' . $e->getMessage(), 500);
+    }
+}
+
+// 3. DELETE - Soft delete/Cancel setting (Admin/Finance only)
+if ($method === 'DELETE') {
+    // Authenticate user & check role
+    $user = requireRole(['Admin', 'Finance']);
+    $id = $_GET['id'] ?? null;
+
+    if (!$id) {
+        sendError('Month Setting ID is required');
+    }
+
+    try {
+        $db = getDatabaseConnection();
+        $db->beginTransaction();
+
+        // Fetch setting details
+        $stmt = $db->prepare("SELECT * FROM monthly_payment_settings WHERE id = :id AND is_deleted = false");
+        $stmt->execute(['id' => $id]);
+        $setting = $stmt->fetch();
+
+        if (!$setting) {
+            $db->rollBack();
+            sendError('Setting not found', 404);
+        }
+
+        // Soft delete monthly setting
+        $deleteStmt = $db->prepare("UPDATE monthly_payment_settings SET is_deleted = true, updated_by = :updated_by WHERE id = :id");
+        $deleteStmt->execute(['id' => $id, 'updated_by' => $user['id']]);
+
+        // Soft delete corresponding weekly payment records
+        $deleteRecordsStmt = $db->prepare("UPDATE weekly_payment_records SET is_deleted = true, updated_by = :updated_by WHERE month_setting_id = :id");
+        $deleteRecordsStmt->execute(['id' => $id, 'updated_by' => $user['id']]);
+
+        // Find notification created for this month setting and cancel it
+        $updateNotif = $db->prepare("
+            UPDATE notifications 
+            SET title = 'รายการนี้ถูกยกเลิกแล้ว', 
+                message = 'รายการเรียกเก็บเงินนี้ถูกยกเลิกการชำระเงินแล้วเพื่อป้องกันการโอนเงินผิดพลาด', 
+                is_cancelled = true 
+            WHERE setting_id = :setting_id
+        ");
+        $updateNotif->execute(['setting_id' => $id]);
+
+        $thMonthNames = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+        $monthText = $thMonthNames[$setting['month'] - 1] . ' ' . $setting['year'];
+
+        // Create a new cancellation notification
+        $newNotif = $db->prepare("
+            INSERT INTO notifications (title, message, type, is_cancelled, setting_id, created_by)
+            VALUES ('รายการเรียกเก็บเงินถูกยกเลิกแล้ว', :msg, 'BudgetChange', true, :setting_id, :created_by)
+        ");
+        $newNotif->execute([
+            'msg' => "รายการเรียกเก็บเงินรอบบิล {$monthText} ถูกยกเลิกโดยผู้ดูแลระบบแล้ว",
+            'setting_id' => $id,
+            'created_by' => $user['id']
+        ]);
+
+        // Send Discord Webhook
+        require_once __DIR__ . '/helpers/discord.php';
+        sendDiscordNotification(
+            "Billing Deleted / ยกเลิกรายการเรียกเก็บเงิน",
+            "รายการเรียกเก็บเงินรอบบิล **{$monthText}** หัวข้อ: **{$setting['title']}** ถูกยกเลิกโดย **{$user['full_name']}** เรียบร้อยแล้ว",
+            "15158332" // Red
+        );
+
+        logAudit($user['id'], $user['email'], 'delete_payment_setting', 'monthly_payment_settings', $id, $setting, ['is_deleted' => true]);
+
+        $db->commit();
+        sendSuccess(null, 'Payment settings deleted and canceled successfully');
+
+    } catch (Exception $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        sendError('Failed to delete setting: ' . $e->getMessage(), 500);
     }
 }
 

@@ -1,14 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Finance Portal Administrative Authentication Login">
-    <title>Staff Authentication Login - COMED23</title>
-    
+    <title>COMED23</title>
+    <link rel="icon" type="image/png" href="logo.png">
+    <script>
+        window.location.href = 'index.html';
+    </script>
+
     <link rel="stylesheet" href="css/variables.css">
     <link rel="stylesheet" href="css/dashboard.css">
-    
+
     <style>
         .login-container {
             display: flex;
@@ -22,11 +27,12 @@
             width: 100%;
             max-width: 420px;
             background: var(--bg-glass);
-            backdrop-filter: blur(12px);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
             border: 1px solid var(--border-glass);
             border-radius: var(--border-radius-md);
             padding: 2.5rem;
-            box-shadow: var(--shadow-lg);
+            box-shadow: var(--shadow-glass);
         }
 
         .login-header {
@@ -61,32 +67,40 @@
         }
     </style>
 </head>
+
 <body>
+    <!-- Apple-style Liquid Animation background -->
+    <div class="liquid-bg-container">
+        <div class="liquid-blob blob-1"></div>
+        <div class="liquid-blob blob-2"></div>
+        <div class="liquid-blob blob-3"></div>
+    </div>
 
     <div class="login-container">
-        
+
         <div class="login-card">
-            
+
             <div class="login-header">
-                <h1>COMED23</h1>
-                <p>Administrative and Financial Logs Login</p>
+                <h1 style="font-family: var(--font-heading);">COMED23</h1>
+                <p>เข้าสู่ระบบจัดการการเงินและตรวจสอบบัญชี</p>
             </div>
 
             <div id="login-alert" class="alert-error"></div>
 
             <form id="login-form">
                 <div class="form-group">
-                    <label for="login-email">Email Address</label>
+                    <label for="login-email">อีเมลผู้ใช้งาน</label>
                     <input type="email" id="login-email" class="form-control" placeholder="staff@school.com" required>
                 </div>
-                
+
                 <div class="form-group" style="margin-top: 1.25rem;">
-                    <label for="login-password">Password</label>
+                    <label for="login-password">รหัสผ่าน</label>
                     <input type="password" id="login-password" class="form-control" placeholder="••••••••" required>
                 </div>
 
-                <button type="submit" id="submit-btn" class="btn btn-primary" style="width: 100%; margin-top: 2rem; justify-content: center; padding: 0.85rem;">
-                    Authenticate Session
+                <button type="submit" id="submit-btn" class="btn btn-primary"
+                    style="width: 100%; margin-top: 2rem; justify-content: center; padding: 0.85rem; font-family: var(--font-heading);">
+                    ยืนยันตัวตนเข้าระบบ
                 </button>
             </form>
 
@@ -99,11 +113,11 @@
     <!-- Config and Auth Helpers -->
     <script src="js/config.js"></script>
     <script src="js/auth.js"></script>
-    
+
     <script>
         document.getElementById('login-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            
+
             const email = document.getElementById('login-email').value.trim();
             const password = document.getElementById('login-password').value;
             const alertBox = document.getElementById('login-alert');
@@ -111,28 +125,28 @@
 
             alertBox.style.display = 'none';
             submitBtn.disabled = true;
-            submitBtn.textContent = 'Authenticating...';
+            submitBtn.textContent = 'กำลังตรวจสอบสิทธิ์...';
 
             try {
                 // Call Auth JS Helper signIn
                 await signIn(email, password);
-                
+
                 // On Success: Validate Role against Postgres backend
                 const profile = await checkAuthState(false);
                 if (profile) {
                     // Forward user to administration dashboard panel
                     window.location.href = 'admin.html';
                 } else {
-                    alertBox.textContent = 'Account exists but lacks verified database profile configuration.';
+                    alertBox.textContent = 'พบบัญชีผู้ใช้ในระบบหลักของโครงการ แต่ยังไม่ได้ลงทะเบียนสิทธิ์ในฐานข้อมูลการเงิน';
                     alertBox.style.display = 'block';
                     submitBtn.disabled = false;
-                    submitBtn.textContent = 'Authenticate Session';
+                    submitBtn.textContent = 'ยืนยันตัวตนเข้าระบบ';
                 }
             } catch (error) {
-                alertBox.textContent = error.message || 'Authentication failed. Please check credentials.';
+                alertBox.textContent = error.message || 'รหัสผ่านผิดพลาด หรือชื่ออีเมลไม่มีสิทธิ์ในระบบนี้';
                 alertBox.style.display = 'block';
                 submitBtn.disabled = false;
-                submitBtn.textContent = 'Authenticate Session';
+                submitBtn.textContent = 'ยืนยันตัวตนเข้าระบบ';
             }
         });
 
@@ -149,8 +163,9 @@
                         }
                     }
                 }
-            } catch(e) {}
+            } catch (e) { }
         })();
     </script>
 </body>
+
 </html>

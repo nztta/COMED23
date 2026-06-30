@@ -4,6 +4,13 @@
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- Create Supabase Migrations table to satisfy Supabase Dashboard logs
+CREATE SCHEMA IF NOT EXISTS supabase_migrations;
+CREATE TABLE IF NOT EXISTS supabase_migrations.schema_migrations (
+    version VARCHAR(255) PRIMARY KEY,
+    dirty BOOLEAN NOT NULL DEFAULT FALSE
+);
+
 -- Trigger function to automatically update updated_at timestamps
 CREATE OR REPLACE FUNCTION trigger_set_timestamp()
 RETURNS TRIGGER AS $$
@@ -23,6 +30,7 @@ CREATE TABLE IF NOT EXISTS roles (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+DROP TRIGGER IF EXISTS set_timestamp_roles ON roles;
 CREATE TRIGGER set_timestamp_roles
 BEFORE UPDATE ON roles
 FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
@@ -40,6 +48,7 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+DROP TRIGGER IF EXISTS set_timestamp_users ON users;
 CREATE TRIGGER set_timestamp_users
 BEFORE UPDATE ON users
 FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
@@ -49,11 +58,14 @@ FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 --------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS students (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    student_id VARCHAR(12) UNIQUE NOT NULL, -- Format: 69xxxxxxxx-x
+    student_id VARCHAR(12) UNIQUE NOT NULL, -- Format: 69xxxxxxx-x
+    prefix VARCHAR(20) DEFAULT '',
     full_name VARCHAR(255) NOT NULL,
     nickname VARCHAR(100),
     class VARCHAR(50) NOT NULL,
     academic_year VARCHAR(10) NOT NULL,
+    email VARCHAR(255) DEFAULT NULL,
+    password_hash VARCHAR(255) DEFAULT NULL,
     status VARCHAR(50) DEFAULT 'Active' CHECK (status IN ('Active', 'Inactive')),
     is_deleted BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -62,6 +74,7 @@ CREATE TABLE IF NOT EXISTS students (
     updated_by UUID REFERENCES users(id) ON DELETE SET NULL
 );
 
+DROP TRIGGER IF EXISTS set_timestamp_students ON students;
 CREATE TRIGGER set_timestamp_students
 BEFORE UPDATE ON students
 FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
@@ -87,6 +100,7 @@ CREATE TABLE IF NOT EXISTS monthly_payment_settings (
     CONSTRAINT unique_month_year UNIQUE (month, year)
 );
 
+DROP TRIGGER IF EXISTS set_timestamp_monthly_payment_settings ON monthly_payment_settings;
 CREATE TRIGGER set_timestamp_monthly_payment_settings
 BEFORE UPDATE ON monthly_payment_settings
 FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
@@ -113,6 +127,7 @@ CREATE TABLE IF NOT EXISTS slip_submissions (
     updated_by UUID REFERENCES users(id) ON DELETE SET NULL
 );
 
+DROP TRIGGER IF EXISTS set_timestamp_slip_submissions ON slip_submissions;
 CREATE TRIGGER set_timestamp_slip_submissions
 BEFORE UPDATE ON slip_submissions
 FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
@@ -139,6 +154,7 @@ CREATE TABLE IF NOT EXISTS weekly_payment_records (
     CONSTRAINT unique_student_month_week UNIQUE (student_id, month_setting_id, week_number)
 );
 
+DROP TRIGGER IF EXISTS set_timestamp_weekly_payment_records ON weekly_payment_records;
 CREATE TRIGGER set_timestamp_weekly_payment_records
 BEFORE UPDATE ON weekly_payment_records
 FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
@@ -159,6 +175,7 @@ CREATE TABLE IF NOT EXISTS payment_transactions (
     updated_by UUID REFERENCES users(id) ON DELETE SET NULL
 );
 
+DROP TRIGGER IF EXISTS set_timestamp_payment_transactions ON payment_transactions;
 CREATE TRIGGER set_timestamp_payment_transactions
 BEFORE UPDATE ON payment_transactions
 FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
@@ -180,6 +197,7 @@ CREATE TABLE IF NOT EXISTS attachments (
     updated_by UUID REFERENCES users(id) ON DELETE SET NULL
 );
 
+DROP TRIGGER IF EXISTS set_timestamp_attachments ON attachments;
 CREATE TRIGGER set_timestamp_attachments
 BEFORE UPDATE ON attachments
 FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
@@ -198,6 +216,7 @@ CREATE TABLE IF NOT EXISTS verification_logs (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+DROP TRIGGER IF EXISTS set_timestamp_verification_logs ON verification_logs;
 CREATE TRIGGER set_timestamp_verification_logs
 BEFORE UPDATE ON verification_logs
 FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
@@ -236,6 +255,7 @@ CREATE TABLE IF NOT EXISTS notifications (
     updated_by UUID REFERENCES users(id) ON DELETE SET NULL
 );
 
+DROP TRIGGER IF EXISTS set_timestamp_notifications ON notifications;
 CREATE TRIGGER set_timestamp_notifications
 BEFORE UPDATE ON notifications
 FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
@@ -255,6 +275,7 @@ CREATE TABLE IF NOT EXISTS comments (
     updated_by UUID REFERENCES users(id) ON DELETE SET NULL
 );
 
+DROP TRIGGER IF EXISTS set_timestamp_comments ON comments;
 CREATE TRIGGER set_timestamp_comments
 BEFORE UPDATE ON comments
 FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
@@ -273,6 +294,7 @@ CREATE TABLE IF NOT EXISTS activity_logs (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+DROP TRIGGER IF EXISTS set_timestamp_activity_logs ON activity_logs;
 CREATE TRIGGER set_timestamp_activity_logs
 BEFORE UPDATE ON activity_logs
 FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
@@ -292,6 +314,7 @@ CREATE TABLE IF NOT EXISTS settings (
     updated_by UUID REFERENCES users(id) ON DELETE SET NULL
 );
 
+DROP TRIGGER IF EXISTS set_timestamp_settings ON settings;
 CREATE TRIGGER set_timestamp_settings
 BEFORE UPDATE ON settings
 FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
@@ -353,17 +376,22 @@ ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
 -- RLS policies here ensure that when accessed directly via Supabase API (e.g. from frontend) or direct claims, permissions are safe:
 
 -- public read policies for certain metadata
+DROP POLICY IF EXISTS "Public read active students" ON students;
 CREATE POLICY "Public read active students" ON students 
     FOR SELECT USING (status = 'Active' AND is_deleted = false);
 
+DROP POLICY IF EXISTS "Public read open monthly settings" ON monthly_payment_settings;
 CREATE POLICY "Public read open monthly settings" ON monthly_payment_settings 
     FOR SELECT USING (status = 'Open' AND is_deleted = false);
 
+DROP POLICY IF EXISTS "Public insert slip submissions" ON slip_submissions;
 CREATE POLICY "Public insert slip submissions" ON slip_submissions 
     FOR INSERT WITH CHECK (verification_status = 'Pending');
 
+DROP POLICY IF EXISTS "Public read slip submissions" ON slip_submissions;
 CREATE POLICY "Public read slip submissions" ON slip_submissions 
     FOR SELECT USING (is_deleted = false);
 
+DROP POLICY IF EXISTS "Public read weekly records" ON weekly_payment_records;
 CREATE POLICY "Public read weekly records" ON weekly_payment_records 
     FOR SELECT USING (is_deleted = false);

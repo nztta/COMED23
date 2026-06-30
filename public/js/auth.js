@@ -40,7 +40,7 @@ async function signOut() {
 
     localStorage.removeItem('sb_access_token');
     await client.auth.signOut();
-    window.location.href = 'login.html';
+    window.location.href = 'index.html';
 }
 
 /**
@@ -67,7 +67,7 @@ async function checkAuthState(redirectOnFail = true) {
     if (error || !session) {
         localStorage.removeItem('sb_access_token');
         if (redirectOnFail) {
-            window.location.href = 'login.html';
+            window.location.href = 'index.html';
         }
         return null;
     }

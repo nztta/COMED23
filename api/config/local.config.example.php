@@ -4,15 +4,15 @@
 
 return [
     // PostgreSQL Database Configuration
-    'DB_HOST' => 'db.xxxx.supabase.co',
-    'DB_PORT' => '5432',
+    'DB_HOST' => 'aws-0-ap-southeast-1.pooler.supabase.com',
+    'DB_PORT' => '6543',
     'DB_NAME' => 'postgres',
-    'DB_USER' => 'postgres',
-    'DB_PASS' => 'your_db_password_here',
+    'DB_USER' => 'postgres.hmszskmpzfmtayhppuws',
+    'DB_PASS' => '5&Ate!94uD9/9cu',
 
     // Supabase Credentials
-    'SUPABASE_URL' => 'https://xxxx.supabase.co',
-    'SUPABASE_ANON_KEY' => 'your_supabase_anon_key_here',
-    'SUPABASE_JWT_SECRET' => 'your_supabase_jwt_secret_here', // Used to verify Supabase Auth JWT tokens in PHP
+    'SUPABASE_URL' => 'https://hmszskmpzfmtayhppuws.supabase.co',
+    'SUPABASE_ANON_KEY' => 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhtc3pza21wemZtdGF5aHBwdXdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2NjUzMDIsImV4cCI6MjA5ODI0MTMwMn0.rcp7dPVUu0asaof4jfpy-pHeg6jUnL8PG21vIazbzxM_supabase_anon_key_here',
+    'SUPABASE_JWT_SECRET' => '4jmVD8EBtw9HNZ4F+9qcFszQ2BjzNYNy/hMr9N+8zXuQkn+6YfJK0tEg9mbjErdgTvuuHUVPer5ysy6LWuyKfQ==', // Used to verify Supabase Auth JWT tokens in PHP
     'SUPABASE_STORAGE_BUCKET' => 'slips',
 ];

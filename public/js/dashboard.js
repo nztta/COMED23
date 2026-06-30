@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 1. Authenticate user session
     currentUser = await checkAuthState(true);
     if (!currentUser) return; // checkAuthState handles redirection
-    
+
     // Update Profile UI
     updateProfileUI();
 
@@ -24,24 +24,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupTabNavigation();
 
     // 4. Initial Load
-    await switchTab('overview');
+    const persistedTab = sessionStorage.getItem('admin_active_tab') || 'overview';
+    await switchTab(persistedTab);
 });
 
 function updateProfileUI() {
-    const userInitials = document.getElementById('user-avatar-initials');
-    const userName = document.getElementById('user-full-name');
-    const userRole = document.getElementById('user-role-name');
+    const userName = document.getElementById('sidebar-user-email');
+    const userRole = document.getElementById('sidebar-user-role');
 
     // Extract initials
     const email = currentUser.email || 'Staff';
-    const initials = email.substring(0, 2).toUpperCase();
 
-    if (userInitials) userInitials.textContent = initials;
     if (userName) userName.textContent = email;
-    // Note: Local role (Admin/Finance/Auditor/Viewer) will be queried from the checkAuthState session.
-    // For simplicity, we decode JWT claims or fetch from localStorage
     const localRoleName = localStorage.getItem('user_role') || 'Viewer';
-    if (userRole) userRole.textContent = localRoleName;
+    const roleTranslations = {
+        'Admin': 'ผู้ดูแลระบบ (Admin)',
+        'Finance': 'เจ้าหน้าที่การเงิน (Finance)',
+        'Auditor': 'ผู้ตรวจสอบบัญชี (Auditor)',
+        'Viewer': 'ผู้เข้าชมทั่วไป (Viewer)',
+        'Student': 'นักศึกษา',
+        'นักศึกษา': 'นักศึกษา'
+    };
+    if (userRole) userRole.textContent = `สิทธิ์: ${roleTranslations[localRoleName] || localRoleName}`;
 
     // Toggle menu items based on role permission
     const currentRole = localRoleName;
@@ -51,11 +55,11 @@ function updateProfileUI() {
     const queueMenuItem = document.querySelector('li[data-tab="queue"]');
 
     // Auditor can ONLY see Overview and Audit Trail
-    if (currentRole === 'Auditor') {
+    if (currentRole === 'Auditor' || currentRole === 'รองหัวหน้า') {
         if (settingsMenuItem) settingsMenuItem.style.display = 'none';
         if (studentsMenuItem) studentsMenuItem.style.display = 'none';
         if (queueMenuItem) queueMenuItem.style.display = 'none';
-    } else if (currentRole === 'Viewer') {
+    } else if (currentRole === 'Viewer' || currentRole === 'Student' || currentRole === 'นักศึกษา') {
         if (settingsMenuItem) settingsMenuItem.style.display = 'none';
         if (studentsMenuItem) studentsMenuItem.style.display = 'none';
         if (queueMenuItem) queueMenuItem.style.display = 'none';
@@ -68,26 +72,51 @@ function updateProfileUI() {
 // -----------------------------------------------------------------------------
 function setupThemeToggle() {
     const toggleBtn = document.getElementById('theme-toggle');
-    const currentTheme = localStorage.getItem('theme') || 'light';
-    
-    document.documentElement.setAttribute('data-theme', currentTheme);
-    updateThemeToggleIcon(currentTheme);
+    if (!toggleBtn) return;
 
-    toggleBtn.addEventListener('click', () => {
-        const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    const applyTheme = (theme) => {
         document.documentElement.setAttribute('data-theme', theme);
-        localStorage.setItem('theme', theme);
         updateThemeToggleIcon(theme);
-        
+
         // Redraw charts with matching theme variables
-        if (charts.monthlyTrend) redrawMonthlyChart();
-        if (charts.weeklyTrend) redrawWeeklyChart();
+        if (typeof charts !== 'undefined') {
+            if (charts.monthlyTrend) redrawMonthlyChart();
+            if (charts.weeklyTrend) redrawWeeklyChart();
+        }
+    };
+
+    // Initialize theme
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) {
+        applyTheme(savedTheme);
+    } else {
+        const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        applyTheme(systemPrefersDark ? 'dark' : 'light');
+    }
+
+    // Toggle button handler
+    toggleBtn.addEventListener('click', () => {
+        const current = document.documentElement.getAttribute('data-theme');
+        const nextTheme = current === 'dark' ? 'light' : 'dark';
+        localStorage.setItem('theme', nextTheme);
+        applyTheme(nextTheme);
+    });
+
+    // Listen to device preference changes (only if no manual preference is saved)
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        if (!localStorage.getItem('theme')) {
+            applyTheme(e.matches ? 'dark' : 'light');
+        }
     });
 }
 
 function updateThemeToggleIcon(theme) {
     const toggleBtn = document.getElementById('theme-toggle');
-    toggleBtn.innerHTML = theme === 'dark' ? '☀️' : '🌙';
+    if (toggleBtn) {
+        const sunIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="theme-icon"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>`;
+        const moonIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="theme-icon"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>`;
+        toggleBtn.innerHTML = theme === 'dark' ? sunIcon : moonIcon;
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -103,11 +132,11 @@ function setupTabNavigation() {
     });
 
     // Handle logout button clicks
-    const logoutBtn = document.getElementById('logout-btn');
+    const logoutBtn = document.getElementById('sign-out-btn');
     if (logoutBtn) {
         logoutBtn.addEventListener('click', async (e) => {
             e.preventDefault();
-            const conf = confirm('Do you want to log out of the dashboard?');
+            const conf = confirm('คุณต้องการออกจากระบบการเงินผู้จัดการใช่หรือไม่?');
             if (conf) {
                 await signOut();
             }
@@ -117,6 +146,7 @@ function setupTabNavigation() {
 
 async function switchTab(tabId) {
     activeTab = tabId;
+    sessionStorage.setItem('admin_active_tab', tabId);
 
     // Toggle active menu selection
     document.querySelectorAll('.menu-item').forEach(item => {
@@ -160,6 +190,29 @@ async function switchTab(tabId) {
 // View 1: Overview & Metrics Dashboard
 // -----------------------------------------------------------------------------
 async function loadDashboardMetrics() {
+    const cacheKey = 'dashboard_metrics';
+    const cachedDataStr = localStorage.getItem(cacheKey);
+    let hasRenderedCache = false;
+
+    if (cachedDataStr) {
+        try {
+            const data = JSON.parse(cachedDataStr);
+            document.getElementById('metric-budget').textContent = `${data.metrics.budget.toLocaleString()} THB`;
+            document.getElementById('metric-collected').textContent = `${data.metrics.collected.toLocaleString()} THB`;
+            document.getElementById('metric-outstanding').textContent = `${data.metrics.outstanding.toLocaleString()} THB`;
+            document.getElementById('metric-pending').textContent = data.metrics.pending_verifications;
+            document.getElementById('metric-rate').textContent = `${data.metrics.collection_rate}%`;
+
+            renderMonthlyChart(data.monthly_trend);
+            renderWeeklyChart(data.weekly_trend);
+            renderNotifications(data.notifications);
+            renderActivities(data.recent_activities);
+            hasRenderedCache = true;
+        } catch (e) {
+            console.error('Error parsing cached dashboard metrics:', e);
+        }
+    }
+
     try {
         const response = await fetch(`${CONFIG.API_BASE_URL}/dashboard.php`, {
             headers: getAuthHeaders()
@@ -167,24 +220,22 @@ async function loadDashboardMetrics() {
         const result = await response.json();
 
         if (result.status === 'success') {
-            const data = result.data;
-            
-            // Render KPI cards
-            document.getElementById('metric-budget').textContent = `${data.metrics.budget.toLocaleString()} THB`;
-            document.getElementById('metric-collected').textContent = `${data.metrics.collected.toLocaleString()} THB`;
-            document.getElementById('metric-outstanding').textContent = `${data.metrics.outstanding.toLocaleString()} THB`;
-            document.getElementById('metric-pending').textContent = data.metrics.pending_verifications;
-            document.getElementById('metric-rate').textContent = `${data.metrics.collection_rate}%`;
+            const newDataStr = JSON.stringify(result.data);
+            if (newDataStr !== cachedDataStr || !hasRenderedCache) {
+                const data = result.data;
+                localStorage.setItem(cacheKey, newDataStr);
 
-            // Draw Charts
-            renderMonthlyChart(data.monthly_trend);
-            renderWeeklyChart(data.weekly_trend);
+                document.getElementById('metric-budget').textContent = `${data.metrics.budget.toLocaleString()} THB`;
+                document.getElementById('metric-collected').textContent = `${data.metrics.collected.toLocaleString()} THB`;
+                document.getElementById('metric-outstanding').textContent = `${data.metrics.outstanding.toLocaleString()} THB`;
+                document.getElementById('metric-pending').textContent = data.metrics.pending_verifications;
+                document.getElementById('metric-rate').textContent = `${data.metrics.collection_rate}%`;
 
-            // Populate notifications list
-            renderNotifications(data.notifications);
-
-            // Populate activities list
-            renderActivities(data.recent_activities);
+                renderMonthlyChart(data.monthly_trend);
+                renderWeeklyChart(data.weekly_trend);
+                renderNotifications(data.notifications);
+                renderActivities(data.recent_activities);
+            }
         }
     } catch (e) {
         console.error('Error fetching metrics data:', e);
@@ -293,7 +344,7 @@ function renderMonthlyChart(trendData) {
     if (charts.monthlyTrend) {
         charts.monthlyTrend.destroy();
     }
-    
+
     charts.monthlyTrend = new ApexCharts(chartDiv, options);
     charts.monthlyTrend.render();
 }
@@ -379,7 +430,23 @@ function redrawWeeklyChart() {
 // -----------------------------------------------------------------------------
 async function loadStudentsList() {
     const tableBody = document.getElementById('students-table-body');
-    tableBody.innerHTML = '<tr><td colspan="7"><div class="skeleton" style="height: 150px;"></div></td></tr>';
+    const cacheKey = 'admin_students_list';
+    const cachedDataStr = localStorage.getItem(cacheKey);
+    let hasRenderedCache = false;
+
+    if (cachedDataStr) {
+        try {
+            studentList = JSON.parse(cachedDataStr);
+            renderStudentsTable(studentList);
+            hasRenderedCache = true;
+        } catch (e) {
+            console.error('Error parsing cached students:', e);
+        }
+    }
+
+    if (!hasRenderedCache) {
+        tableBody.innerHTML = '<tr><td colspan="7"><div class="skeleton" style="height: 150px;"></div></td></tr>';
+    }
 
     try {
         const response = await fetch(`${CONFIG.API_BASE_URL}/students.php`, {
@@ -388,8 +455,12 @@ async function loadStudentsList() {
         const result = await response.json();
 
         if (result.status === 'success') {
-            studentList = result.data;
-            renderStudentsTable(studentList);
+            const newDataStr = JSON.stringify(result.data);
+            if (newDataStr !== cachedDataStr || !hasRenderedCache) {
+                studentList = result.data;
+                localStorage.setItem(cacheKey, newDataStr);
+                renderStudentsTable(studentList);
+            }
         }
     } catch (e) {
         console.error('Error fetching students:', e);
@@ -401,7 +472,7 @@ function renderStudentsTable(students) {
     tableBody.innerHTML = '';
 
     if (students.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No students in database.</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">ไม่พบข้อมูลรายชื่อนักศึกษาในฐานข้อมูล</td></tr>';
         return;
     }
 
@@ -409,14 +480,14 @@ function renderStudentsTable(students) {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td><strong>${s.student_id}</strong></td>
-            <td>${s.full_name}</td>
+            <td>${(s.prefix || '') + s.full_name}</td>
             <td>${s.nickname || '-'}</td>
             <td>${s.class}</td>
             <td>${s.academic_year}</td>
-            <td><span class="badge badge-${s.status === 'Active' ? 'green' : 'gray'}">${s.status}</span></td>
+            <td><span class="badge badge-${s.status === 'Active' ? 'green' : 'gray'}">${s.status === 'Active' ? 'เปิดใช้งาน' : 'ระงับสิทธิ์'}</span></td>
             <td>
-                <button class="btn btn-secondary btn-sm" onclick="openEditStudentModal('${s.id}')">Edit</button>
-                <button class="btn btn-danger btn-sm" onclick="deleteStudent('${s.id}')">Delete</button>
+                <button class="btn btn-secondary btn-sm" onclick="openEditStudentModal('${s.id}')">แก้ไข</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteStudent('${s.id}')">ลบ</button>
             </td>
         `;
         tableBody.appendChild(tr);
@@ -428,9 +499,9 @@ const studentSearchInput = document.getElementById('student-search');
 if (studentSearchInput) {
     studentSearchInput.addEventListener('input', (e) => {
         const query = e.target.value.toLowerCase().trim();
-        const filtered = studentList.filter(s => 
+        const filtered = studentList.filter(s =>
             s.student_id.toLowerCase().includes(query) ||
-            s.full_name.toLowerCase().includes(query) ||
+            ((s.prefix || '') + s.full_name).toLowerCase().includes(query) ||
             s.class.toLowerCase().includes(query)
         );
         renderStudentsTable(filtered);
@@ -444,7 +515,7 @@ const addStudentBtn = document.getElementById('add-student-btn');
 
 if (addStudentBtn) {
     addStudentBtn.addEventListener('click', () => {
-        document.getElementById('student-modal-title').textContent = 'Add New Student';
+        document.getElementById('student-modal-title').textContent = 'เพิ่มรายชื่อนักศึกษาใหม่';
         studentForm.reset();
         document.getElementById('form-student-id-field').value = '';
         studentModal.classList.add('active');
@@ -455,9 +526,10 @@ function openEditStudentModal(id) {
     const student = studentList.find(s => s.id === id);
     if (!student) return;
 
-    document.getElementById('student-modal-title').textContent = 'Edit Student Details';
+    document.getElementById('student-modal-title').textContent = 'แก้ไขข้อมูลประวัตินักศึกษา';
     document.getElementById('form-student-id-field').value = student.id;
     document.getElementById('student-code').value = student.student_id;
+    document.getElementById('student-prefix').value = student.prefix || 'นางสาว';
     document.getElementById('student-fullname').value = student.full_name;
     document.getElementById('student-nickname').value = student.nickname;
     document.getElementById('student-class').value = student.class;
@@ -475,6 +547,7 @@ if (studentForm) {
         const payload = {
             id: document.getElementById('form-student-id-field').value || null,
             student_id: document.getElementById('student-code').value.trim(),
+            prefix: document.getElementById('student-prefix').value,
             full_name: document.getElementById('student-fullname').value.trim(),
             nickname: document.getElementById('student-nickname').value.trim(),
             class: document.getElementById('student-class').value.trim(),
@@ -503,7 +576,7 @@ if (studentForm) {
 }
 
 async function deleteStudent(id) {
-    if (!confirm('Are you sure you want to delete this student record? This action soft deletes their records.')) {
+    if (!confirm('คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลประวัตินักศึกษาคนนี้? การลบนี้จะเป็นการระงับและลบประวัติแบบถาวร')) {
         return;
     }
 
@@ -530,7 +603,23 @@ async function deleteStudent(id) {
 // -----------------------------------------------------------------------------
 async function loadMonthSettings() {
     const grid = document.getElementById('settings-grid');
-    grid.innerHTML = '<div class="skeleton" style="height: 200px; width: 100%;"></div>';
+    const cacheKey = 'admin_month_settings';
+    const cachedDataStr = localStorage.getItem(cacheKey);
+    let hasRenderedCache = false;
+
+    if (cachedDataStr) {
+        try {
+            monthSettingsList = JSON.parse(cachedDataStr);
+            renderSettingsGrid(monthSettingsList);
+            hasRenderedCache = true;
+        } catch (e) {
+            console.error('Error parsing cached settings:', e);
+        }
+    }
+
+    if (!hasRenderedCache) {
+        grid.innerHTML = '<div class="skeleton" style="height: 200px; width: 100%;"></div>';
+    }
 
     try {
         const response = await fetch(`${CONFIG.API_BASE_URL}/settings.php`, {
@@ -539,8 +628,12 @@ async function loadMonthSettings() {
         const result = await response.json();
 
         if (result.status === 'success') {
-            monthSettingsList = result.data;
-            renderSettingsGrid(monthSettingsList);
+            const newDataStr = JSON.stringify(result.data);
+            if (newDataStr !== cachedDataStr || !hasRenderedCache) {
+                monthSettingsList = result.data;
+                localStorage.setItem(cacheKey, newDataStr);
+                renderSettingsGrid(monthSettingsList);
+            }
         }
     } catch (e) {
         console.error(e);
@@ -552,36 +645,76 @@ function renderSettingsGrid(settings) {
     grid.innerHTML = '';
 
     const monthNames = [
-        'January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'
+        'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
     ];
 
+    const statusTranslations = {
+        'Open': 'เปิดระบบชำระ',
+        'Closed': 'ปิดรับชั่วคราว',
+        'Archived': 'ล็อกประวัติถาวร'
+    };
+
     if (settings.length === 0) {
-        grid.innerHTML = '<div class="text-center text-muted col-span-3">No configurations set. Click create config.</div>';
+        grid.innerHTML = '<div class="text-center text-muted col-span-3">ยังไม่มีการกำหนดเกณฑ์จัดเก็บเงินของสัปดาห์ คลิกปุ่มตั้งเกณฑ์ด้านบนเพื่อเริ่มต้น</div>';
         return;
     }
 
     settings.forEach(s => {
         const card = document.createElement('div');
         card.className = `card setting-card status-${s.status.toLowerCase()}`;
-        
+
         card.innerHTML = `
             <div class="setting-card-header">
                 <h3>${monthNames[s.month - 1]} ${s.year}</h3>
-                <span class="badge badge-${s.status === 'Open' ? 'green' : (s.status === 'Closed' ? 'yellow' : 'gray')}">${s.status}</span>
+                <span class="badge badge-${s.status === 'Open' ? 'green' : (s.status === 'Closed' ? 'yellow' : 'gray')}">${statusTranslations[s.status] || s.status}</span>
             </div>
             <div class="setting-card-body">
-                <div class="setting-item"><strong>Weekly Fee:</strong> ${s.weekly_fee} THB</div>
-                <div class="setting-item"><strong>Number of Weeks:</strong> ${s.number_of_weeks}</div>
-                <div class="setting-item"><strong>Open Date:</strong> ${s.open_date}</div>
-                <div class="setting-item"><strong>Close Date:</strong> ${s.close_date}</div>
+                <div class="setting-item"><strong>ค่าบำรุงรายสัปดาห์:</strong> ${s.weekly_fee} บาท</div>
+                <div class="setting-item"><strong>จำนวนสัปดาห์เก็บเงิน:</strong> ${s.number_of_weeks} สัปดาห์</div>
+                <div class="setting-item"><strong>วันที่เปิดระบบ:</strong> ${s.open_date}</div>
+                <div class="setting-item"><strong>วันที่ปิดระบบ:</strong> ${s.close_date}</div>
             </div>
-            <div class="setting-card-footer">
-                <button class="btn btn-secondary btn-sm" onclick="openEditSettingModal('${s.id}')">Edit</button>
+            <div class="setting-card-footer" style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                <button class="btn btn-secondary btn-sm" onclick="openEditSettingModal('${s.id}')">แก้ไขเกณฑ์</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteSetting('${s.id}')">ลบประกาศ</button>
             </div>
         `;
         grid.appendChild(card);
     });
+}
+
+// Delete Monthly Setting
+async function deleteSetting(id) {
+    const isConfirmed = confirm(
+        "🚨 คำเตือนสำคัญ!\n" +
+        "คุณยืนยันที่จะลบประกาศและเกณฑ์การเก็บเงินรอบบิลนี้ใช่หรือไม่?\n\n" +
+        "การดำเนินการนี้จะ:\n" +
+        "1. ลบ/ยกเลิกเกณฑ์ชำระเงินของรอบบิลนี้ออกจากการแสดงผลทั้งหมด\n" +
+        "2. ยกเลิกรายการแจ้งเตือนค้างชำระของนักศึกษาทุกคนสำหรับบิลนี้ เพื่อป้องกันการชำระเงินผิดพลาด\n" +
+        "3. ส่งข้อความแจ้งยกเลิกไปยังกล่องข้อความนักศึกษาและ Discord\n\n" +
+        "คุณต้องการดำเนินการต่อหรือไม่?"
+    );
+    
+    if (!isConfirmed) return;
+
+    try {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/settings.php?id=${id}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
+        const result = await response.json();
+
+        if (result.status === 'success') {
+            alert('ลบประกาศและยกเลิกเกณฑ์การชำระเงินเรียบร้อยแล้ว!');
+            await loadSettings(); // Reload settings list
+        } else {
+            alert('ไม่สามารถลบรายการได้: ' + result.message);
+        }
+    } catch (e) {
+        console.error(e);
+        alert('เครือข่ายขัดข้อง ไม่สามารถติดต่อระบบจัดการเกณฑ์ได้');
+    }
 }
 
 // Config Modal
@@ -593,33 +726,137 @@ const dueDatesContainer = document.getElementById('due-dates-dynamic-fields');
 
 if (addSettingBtn) {
     addSettingBtn.addEventListener('click', () => {
-        document.getElementById('setting-modal-title').textContent = 'Create Month Config';
+        document.getElementById('setting-modal-title').textContent = 'ตั้งเกณฑ์จัดเก็บเงินเดือนใหม่';
         settingForm.reset();
         document.getElementById('form-setting-id-field').value = '';
-        generateDueDatesFields(4); // default
+        document.getElementById('setting-targets-select').value = 'all';
+        document.getElementById('custom-targets-container').classList.add('hidden');
+
+        // Prefill default current month and year
+        const today = new Date();
+        document.getElementById('setting-month').value = today.getMonth() + 1;
+        document.getElementById('setting-year').value = today.getFullYear();
+        document.getElementById('setting-weeks').value = 4;
+
+        recalculateAutoDates();
         settingModal.classList.add('active');
     });
 }
 
+const targetsSelect = document.getElementById('setting-targets-select');
+const customTargetsContainer = document.getElementById('custom-targets-container');
+
+if (targetsSelect) {
+    targetsSelect.addEventListener('change', (e) => {
+        if (e.target.value === 'custom') {
+            customTargetsContainer.classList.remove('hidden');
+            renderCustomMembersCheckboxes();
+        } else {
+            customTargetsContainer.classList.add('hidden');
+        }
+    });
+}
+
+function renderCustomMembersCheckboxes(selectedIds = []) {
+    const container = document.getElementById('custom-members-checkboxes');
+    if (!container) return;
+    container.innerHTML = '';
+
+    studentList.forEach(s => {
+        const isChecked = selectedIds.includes(s.id);
+        const label = document.createElement('label');
+        label.style.display = 'flex';
+        label.style.alignItems = 'center';
+        label.style.gap = '0.5rem';
+        label.style.fontSize = '0.8rem';
+        label.style.cursor = 'pointer';
+        label.style.color = 'var(--text-primary)';
+
+        label.innerHTML = `
+            <input type="checkbox" value="${s.id}" class="custom-member-chk" ${isChecked ? 'checked' : ''}>
+            <span>${s.student_id} - ${s.full_name} (${s.nickname || ''})</span>
+        `;
+        container.appendChild(label);
+    });
+}
+
+function recalculateAutoDates() {
+    const monthSelect = document.getElementById('setting-month');
+    const yearInput = document.getElementById('setting-year');
+    const weeksInput = document.getElementById('setting-weeks');
+    const openDateInput = document.getElementById('setting-open');
+    const closeDateInput = document.getElementById('setting-close');
+
+    if (!monthSelect || !yearInput || !weeksInput) return;
+
+    let month = parseInt(monthSelect.value);
+    const year = parseInt(yearInput.value);
+    let numWeeks = parseInt(weeksInput.value) || 4;
+
+    if (isNaN(month) || isNaN(year)) return;
+
+    // Limit February to 4 weeks maximum
+    if (month === 2) {
+        if (numWeeks > 4) {
+            numWeeks = 4;
+            weeksInput.value = 4;
+        }
+        weeksInput.setAttribute('max', '4');
+    } else {
+        weeksInput.setAttribute('max', '5');
+    }
+
+    // Set Open Date to the 1st of the selected month (YYYY-MM-01)
+    const formattedMonth = String(month).padStart(2, '0');
+    const openDateVal = `${year}-${formattedMonth}-01`;
+    if (openDateInput) {
+        openDateInput.value = openDateVal;
+    }
+
+    // Set Close Date to a far future date (never closes)
+    if (closeDateInput) {
+        closeDateInput.value = '2099-12-31';
+    }
+
+    // Generate calculated due dates
+    const autoDates = [];
+    for (let w = 1; w <= numWeeks; w++) {
+        const dayNum = 1 + (w - 1) * 7;
+        const formattedDay = String(dayNum).padStart(2, '0');
+        autoDates.push(`${year}-${formattedMonth}-${formattedDay}`);
+    }
+
+    generateDueDatesFields(numWeeks, autoDates);
+}
+
+// Register auto-calculation event listeners
+const monthSelectEl = document.getElementById('setting-month');
+const yearInputEl = document.getElementById('setting-year');
+
+if (monthSelectEl) {
+    monthSelectEl.addEventListener('change', recalculateAutoDates);
+}
+if (yearInputEl) {
+    yearInputEl.addEventListener('input', recalculateAutoDates);
+}
 if (numberWeeksInput) {
-    numberWeeksInput.addEventListener('change', (e) => {
-        const num = parseInt(e.target.value);
-        generateDueDatesFields(num);
+    numberWeeksInput.addEventListener('change', () => {
+        recalculateAutoDates();
     });
 }
 
 function generateDueDatesFields(numWeeks, existingDates = []) {
     dueDatesContainer.innerHTML = '';
-    
+
     for (let w = 1; w <= numWeeks; w++) {
         const div = document.createElement('div');
         div.className = 'form-group';
-        
+
         const dateVal = existingDates[w - 1] || '';
-        
+
         div.innerHTML = `
-            <label>Week ${w} Due Date</label>
-            <input type="date" class="form-control due-date-input" value="${dateVal}" required>
+            <label>วันครบกำหนดชำระ สัปดาห์ที่ ${w} (คำนวณอัตโนมัติ)</label>
+            <input type="date" class="form-control due-date-input" value="${dateVal}" readonly required>
         `;
         dueDatesContainer.appendChild(div);
     }
@@ -629,7 +866,7 @@ function openEditSettingModal(id) {
     const setting = monthSettingsList.find(s => s.id === id);
     if (!setting) return;
 
-    document.getElementById('setting-modal-title').textContent = 'Edit Monthly Configuration';
+    document.getElementById('setting-modal-title').textContent = 'แก้ไขเกณฑ์เก็บเงินรายเดือน';
     document.getElementById('form-setting-id-field').value = setting.id;
     document.getElementById('setting-month').value = setting.month;
     document.getElementById('setting-year').value = setting.year;
@@ -638,6 +875,25 @@ function openEditSettingModal(id) {
     document.getElementById('setting-open').value = setting.open_date;
     document.getElementById('setting-close').value = setting.close_date;
     document.getElementById('setting-status-select').value = setting.status;
+    document.getElementById('setting-title').value = setting.title || '';
+    document.getElementById('setting-desc').value = setting.description || '';
+
+    const customTargetsContainer = document.getElementById('custom-targets-container');
+    if (setting.custom_members) {
+        let members = [];
+        try {
+            members = typeof setting.custom_members === 'string' ? JSON.parse(setting.custom_members) : setting.custom_members;
+        } catch (e) {
+            console.error(e);
+        }
+
+        document.getElementById('setting-targets-select').value = 'custom';
+        if (customTargetsContainer) customTargetsContainer.classList.remove('hidden');
+        renderCustomMembersCheckboxes(members);
+    } else {
+        document.getElementById('setting-targets-select').value = 'all';
+        if (customTargetsContainer) customTargetsContainer.classList.add('hidden');
+    }
 
     generateDueDatesFields(setting.number_of_weeks, setting.due_dates);
 
@@ -655,6 +911,15 @@ if (settingForm) {
             dueDates.push(input.value);
         });
 
+        // Compile custom members checklist
+        let customMembers = null;
+        if (document.getElementById('setting-targets-select').value === 'custom') {
+            customMembers = [];
+            document.querySelectorAll('.custom-member-chk:checked').forEach(chk => {
+                customMembers.push(chk.value);
+            });
+        }
+
         const payload = {
             id: document.getElementById('form-setting-id-field').value || null,
             month: parseInt(document.getElementById('setting-month').value),
@@ -664,6 +929,9 @@ if (settingForm) {
             open_date: document.getElementById('setting-open').value,
             close_date: document.getElementById('setting-close').value,
             status: document.getElementById('setting-status-select').value,
+            title: document.getElementById('setting-title').value.trim(),
+            description: document.getElementById('setting-desc').value.trim(),
+            custom_members: customMembers,
             due_dates: dueDates
         };
 
@@ -688,56 +956,86 @@ if (settingForm) {
 }
 
 
-// -----------------------------------------------------------------------------
-// View 4: Slip Verification Queue
-// -----------------------------------------------------------------------------
+// Verification Queue Loader
 async function loadVerificationQueue() {
     const tableBody = document.getElementById('queue-table-body');
-    tableBody.innerHTML = '<tr><td colspan="7"><div class="skeleton" style="height: 150px;"></div></td></tr>';
+    const filterVal = document.getElementById('queue-status-filter')?.value || 'Pending';
+    const cacheKey = `admin_verification_queue_${filterVal}`;
+    const cachedDataStr = localStorage.getItem(cacheKey);
+    let hasRenderedCache = false;
+
+    if (cachedDataStr) {
+        try {
+            verificationQueue = JSON.parse(cachedDataStr);
+            renderQueueTable(verificationQueue);
+            hasRenderedCache = true;
+        } catch (e) {
+            console.error('Error parsing cached verification queue:', e);
+        }
+    }
+
+    if (!hasRenderedCache) {
+        tableBody.innerHTML = '<tr><td colspan="7"><div class="skeleton" style="height: 150px;"></div></td></tr>';
+    }
 
     try {
-        const response = await fetch(`${CONFIG.API_BASE_URL}/submissions.php?status=Pending`, {
+        const statusParam = filterVal === 'All' ? '' : `status=${filterVal}`;
+        const response = await fetch(`${CONFIG.API_BASE_URL}/submissions.php?${statusParam}`, {
             headers: getAuthHeaders()
         });
         const result = await response.json();
 
         if (result.status === 'success') {
-            verificationQueue = result.data;
-            renderQueueTable(verificationQueue);
+            const newDataStr = JSON.stringify(result.data);
+            if (newDataStr !== cachedDataStr || !hasRenderedCache) {
+                verificationQueue = result.data;
+                localStorage.setItem(cacheKey, newDataStr);
+                renderQueueTable(verificationQueue);
+            }
         }
     } catch (e) {
         console.error(e);
     }
 }
 
+// Bind filter listener
+document.addEventListener('DOMContentLoaded', () => {
+    const queueFilter = document.getElementById('queue-status-filter');
+    if (queueFilter) {
+        queueFilter.addEventListener('change', () => {
+            loadVerificationQueue();
+        });
+    }
+});
+
 function renderQueueTable(submissions) {
     const tableBody = document.getElementById('queue-table-body');
     tableBody.innerHTML = '';
 
     const monthNames = [
-        'January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'
+        'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
     ];
 
     if (submissions.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No pending slips in queue! Great job.</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">ไม่มีสลิปการโอนที่รอการตรวจสอบความถูกต้องในขณะนี้!</td></tr>';
         return;
     }
 
     submissions.forEach(s => {
         const tr = document.createElement('tr');
-        const formattedWeeks = s.weeks.map(w => `Week ${w}`).join(', ');
-        const submittedDate = new Date(s.submitted_at).toLocaleString();
+        const formattedWeeks = s.weeks.map(w => `สัปดาห์ที่ ${w}`).join(', ');
+        const submittedDate = new Date(s.submitted_at).toLocaleString('th-TH');
 
         tr.innerHTML = `
-            <td><strong>#${s.id.substring(0, 8)}</strong></td>
+            <td><strong>#${s.id.substring(0, 8).toUpperCase()}</strong></td>
             <td>${s.student_code} - ${s.student_name}</td>
             <td>${monthNames[s.month - 1]} ${s.year}</td>
             <td>${formattedWeeks}</td>
-            <td><strong>${s.amount} THB</strong></td>
+            <td><strong>${s.amount} บาท</strong></td>
             <td>${submittedDate}</td>
             <td>
-                <button class="btn btn-primary btn-sm" onclick="openVerifyDialog('${s.id}')">Verify</button>
+                <button class="btn btn-primary btn-sm" onclick="openVerifyDialog('${s.id}')">ตรวจสอบสลิป</button>
             </td>
         `;
         tableBody.appendChild(tr);
@@ -754,11 +1052,11 @@ function openVerifyDialog(id) {
     if (!sub) return;
 
     activeSubId = id;
-    
+
     document.getElementById('verify-student-name').textContent = sub.student_name;
     document.getElementById('verify-student-code').textContent = sub.student_code;
-    document.getElementById('verify-amount').textContent = `${sub.amount} THB`;
-    document.getElementById('verify-weeks').textContent = sub.weeks.map(w => `Week ${w}`).join(', ');
+    document.getElementById('verify-amount').textContent = `${sub.amount} บาท`;
+    document.getElementById('verify-weeks').textContent = sub.weeks.map(w => `สัปดาห์ที่ ${w}`).join(', ');
     document.getElementById('verify-comments').value = '';
 
     // Handle slip preview (Check if it's image or PDF)
@@ -766,14 +1064,14 @@ function openVerifyDialog(id) {
     previewContainer.innerHTML = '';
 
     // Standardize URL check (Support local uploads or public web URLs)
-    const slipUrl = sub.slip_url.startsWith('http') ? sub.slip_url : `./public/${sub.slip_url}`;
+    const slipUrl = sub.slip_url.startsWith('http') ? sub.slip_url : sub.slip_url;
 
     if (sub.slip_url.toLowerCase().endsWith('.pdf')) {
         previewContainer.innerHTML = `
             <div style="padding: 1.5rem; text-align: center; border: 1px solid var(--border-glass); border-radius: var(--border-radius-sm);">
                 <div style="font-size: 3rem; margin-bottom: 0.5rem;">📄</div>
-                <div>PDF Document Payment Slip</div>
-                <a href="${slipUrl}" target="_blank" class="btn btn-secondary btn-sm" style="margin-top: 1rem;">Open PDF in New Tab</a>
+                <div>หลักฐานการโอนเงินรูปแบบไฟล์ PDF</div>
+                <a href="${slipUrl}" target="_blank" class="btn btn-secondary btn-sm" style="margin-top: 1rem;">เปิดเอกสาร PDF ในหน้าต่างใหม่</a>
             </div>
         `;
     } else {
@@ -783,25 +1081,61 @@ function openVerifyDialog(id) {
     }
 
     // Download Button setup
-    document.getElementById('verify-download-btn').href = slipUrl;
+    const downloadBtn = document.getElementById('verify-download-btn');
+    if (downloadBtn) {
+        downloadBtn.href = slipUrl;
+        const ext = sub.slip_url.split('.').pop().split('?')[0] || 'png';
+        downloadBtn.download = `slip_${sub.student_code}_${sub.id.substring(0, 8)}.${ext}`;
+        downloadBtn.target = '_blank';
+    }
+
+    // Update queue position indicators
+    const currentIndex = verificationQueue.findIndex(s => s.id === id);
+    const totalCount = verificationQueue.length;
+    const posIndicator = document.getElementById('queue-position-indicator');
+    if (posIndicator) {
+        posIndicator.textContent = `${currentIndex + 1} / ${totalCount}`;
+    }
+
+    const prevBtn = document.getElementById('prev-queue-btn');
+    const nextBtn = document.getElementById('next-queue-btn');
+    if (prevBtn) prevBtn.disabled = (currentIndex === 0);
+    if (nextBtn) nextBtn.disabled = (currentIndex === totalCount - 1);
 
     verifyModal.classList.add('active');
 }
 
-// Handle decision trigger (Approve / Reject)
+function navigateVerifyQueue(direction) {
+    if (!activeSubId || !verificationQueue.length) return;
+    const currentIndex = verificationQueue.findIndex(s => s.id === activeSubId);
+    if (currentIndex === -1) return;
+
+    const nextIndex = currentIndex + direction;
+    if (nextIndex >= 0 && nextIndex < verificationQueue.length) {
+        openVerifyDialog(verificationQueue[nextIndex].id);
+    }
+}
+
+// Handle decision trigger (Approve / Reject / Revert)
 document.querySelectorAll('.decision-btn').forEach(btn => {
     btn.addEventListener('click', async (e) => {
-        const action = e.target.getAttribute('data-action'); // 'Approve', 'Reject', 'RequestInfo'
+        const action = e.currentTarget.getAttribute('data-action'); // 'Approve', 'Reject', 'Pending', 'RequestInfo'
         const comments = document.getElementById('verify-comments').value.trim();
 
         if (!activeSubId) return;
 
-        if (action === 'Reject' && empty(comments)) {
-            alert('A comment explaining the rejection is required.');
+        if (action === 'Reject' && comments === '') {
+            alert('จำเป็นต้องกรอกรายละเอียดคำชี้แจงเพื่ออธิบายการปฏิเสธอนุมัติสลิปนี้');
             return;
         }
 
-        const confirmText = `Are you sure you want to ${action === 'Approve' ? 'approve' : (action === 'Reject' ? 'reject' : 'request information for')} this slip submission?`;
+        const actionNames = {
+            'Approve': 'อนุมัติผ่านสลิป',
+            'Reject': 'ปฏิเสธคำขอการส่งสลิป',
+            'Pending': 'ย้อนสถานะตรวจสอบเป็นรอนำส่งใหม่',
+            'RequestInfo': 'ส่งความเห็นแจ้งข้อมูลเพิ่มเติม'
+        };
+        const confirmText = `คุณยืนยันที่จะทำรายการ "${actionNames[action]}" สำหรับหลักฐานสลิปโอนเงินนี้ใช่หรือไม่?`;
         if (!confirm(confirmText)) return;
 
         try {
@@ -817,13 +1151,90 @@ document.querySelectorAll('.decision-btn').forEach(btn => {
             const result = await response.json();
 
             if (result.status === 'success') {
-                verifyModal.classList.remove('active');
+                const oldIndex = verificationQueue.findIndex(s => s.id === activeSubId);
+                
+                // Load updated queue in background
                 await loadVerificationQueue();
+                
+                // If item is still in queue (e.g. filter is 'All'), next index is oldIndex + 1
+                // Otherwise (item removed), next index is the same oldIndex (which points to next item)
+                const isItemStillInQueue = verificationQueue.some(s => s.id === activeSubId);
+                let nextIndex = oldIndex;
+                if (isItemStillInQueue) {
+                    nextIndex = oldIndex + 1;
+                }
+
+                if (verificationQueue.length > 0) {
+                    const safeIndex = Math.max(0, Math.min(nextIndex, verificationQueue.length - 1));
+                    openVerifyDialog(verificationQueue[safeIndex].id);
+                } else {
+                    verifyModal.classList.remove('active');
+                    alert('ตรวจเอกสารคำขอที่ค้างทั้งหมดเรียบร้อยแล้ว!');
+                }
             } else {
                 alert(result.message);
             }
         } catch (error) {
             console.error(error);
+        }
+    });
+});
+
+// Notifications count badge
+async function loadUnreadNotificationsCount() {
+    const badge = document.getElementById('admin-inbox-badge');
+    if (!badge) return;
+
+    try {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/notifications.php?action=unread_count`, {
+            headers: getAuthHeaders()
+        });
+        const result = await response.json();
+        if (result.status === 'success') {
+            const count = result.data.unread_count;
+            if (count > 0) {
+                badge.textContent = count;
+                badge.style.display = 'flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadUnreadNotificationsCount();
+
+    // Register Verification Queue Navigation Button Click Handlers
+    const prevBtn = document.getElementById('prev-queue-btn');
+    const nextBtn = document.getElementById('next-queue-btn');
+    
+    if (prevBtn) {
+        prevBtn.addEventListener('click', () => {
+            navigateVerifyQueue(-1);
+        });
+    }
+    if (nextBtn) {
+        nextBtn.addEventListener('click', () => {
+            navigateVerifyQueue(1);
+        });
+    }
+
+    // Register Keyboard Arrow Key Listeners for Modal Navigation
+    document.addEventListener('keydown', (e) => {
+        const verifyModal = document.getElementById('verify-modal');
+        if (verifyModal && verifyModal.classList.contains('active')) {
+            // Check if user is typing in comments box to prevent accidental navigation
+            if (document.activeElement === document.getElementById('verify-comments')) {
+                return;
+            }
+            if (e.key === 'ArrowLeft') {
+                navigateVerifyQueue(-1);
+            } else if (e.key === 'ArrowRight') {
+                navigateVerifyQueue(1);
+            }
         }
     });
 });
@@ -834,7 +1245,23 @@ document.querySelectorAll('.decision-btn').forEach(btn => {
 // -----------------------------------------------------------------------------
 async function loadAuditTrail() {
     const tableBody = document.getElementById('audit-table-body');
-    tableBody.innerHTML = '<tr><td colspan="6"><div class="skeleton" style="height: 150px;"></div></td></tr>';
+    const cacheKey = 'admin_audit_trail';
+    const cachedDataStr = localStorage.getItem(cacheKey);
+    let hasRenderedCache = false;
+
+    if (cachedDataStr) {
+        try {
+            const data = JSON.parse(cachedDataStr);
+            renderAuditTable(data);
+            hasRenderedCache = true;
+        } catch (e) {
+            console.error('Error parsing cached audit trail:', e);
+        }
+    }
+
+    if (!hasRenderedCache) {
+        tableBody.innerHTML = '<tr><td colspan="6"><div class="skeleton" style="height: 150px;"></div></td></tr>';
+    }
 
     try {
         const response = await fetch(`${CONFIG.API_BASE_URL}/audit.php`, {
@@ -843,7 +1270,11 @@ async function loadAuditTrail() {
         const result = await response.json();
 
         if (result.status === 'success') {
-            renderAuditTable(result.data);
+            const newDataStr = JSON.stringify(result.data);
+            if (newDataStr !== cachedDataStr || !hasRenderedCache) {
+                localStorage.setItem(cacheKey, newDataStr);
+                renderAuditTable(result.data);
+            }
         }
     } catch (e) {
         console.error(e);
@@ -855,21 +1286,34 @@ function renderAuditTable(logs) {
     tableBody.innerHTML = '';
 
     if (logs.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No audit logs found.</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">ไม่พบประวัติบันทึกกิจกรรมการใช้งานระบบ</td></tr>';
         return;
     }
 
+    const actionTranslations = {
+        'LOGIN': 'เข้าสู่ระบบ',
+        'LOGOUT': 'ออกจากระบบ',
+        'CREATE_STUDENT': 'เพิ่มนักศึกษา',
+        'UPDATE_STUDENT': 'แก้ไขข้อมูลนักศึกษา',
+        'DELETE_STUDENT': 'ลบข้อมูลนักศึกษา',
+        'CREATE_SETTING': 'สร้างเกณฑ์เดือน',
+        'UPDATE_SETTING': 'แก้ไขเกณฑ์เดือน',
+        'SUBMIT_SLIP': 'ส่งสลิปชำระเงิน',
+        'VERIFY_SLIP': 'อนุมัติ/ตรวจสอบสลิป'
+    };
+
     logs.forEach(l => {
         const tr = document.createElement('tr');
-        const timestamp = new Date(l.timestamp).toLocaleString();
-        
+        const timestamp = new Date(l.timestamp).toLocaleString('th-TH');
+
         // Format action name nicely
-        const cleanAction = l.action.replace(/_/g, ' ').toUpperCase();
+        const cleanAction = l.action.toUpperCase();
+        const displayAction = actionTranslations[cleanAction] || cleanAction.replace(/_/g, ' ');
 
         tr.innerHTML = `
             <td>${timestamp}</td>
-            <td><strong>${l.user_email || 'System/Public'}</strong></td>
-            <td><span class="badge badge-gray">${cleanAction}</span></td>
+            <td><strong>${l.user_email || 'ระบบ/ผู้เข้าชมทั่วไป'}</strong></td>
+            <td><span class="badge badge-gray">${displayAction}</span></td>
             <td>${l.table_name || '-'}</td>
             <td>${l.device} (${l.browser})</td>
             <td><code>${l.ip_address}</code></td>
@@ -887,11 +1331,11 @@ function setupReportsPanel() {
     const reportMonthSelect = document.getElementById('report-month-setting');
     if (!reportMonthSelect) return;
 
-    reportMonthSelect.innerHTML = '<option value="">Select Month</option>';
-    
+    reportMonthSelect.innerHTML = '<option value="">เลือกเดือน</option>';
+
     const monthNames = [
-        'January', 'February', 'March', 'April', 'May', 'June',
-        'July', 'August', 'September', 'October', 'November', 'December'
+        'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
     ];
 
     // Load available settings
@@ -909,7 +1353,7 @@ function triggerReportExport(reportType) {
     const monthSettingId = document.getElementById('report-month-setting').value;
 
     if (reportType === 'monthly' && empty(monthSettingId)) {
-        alert('Please select a Month from the dropdown first to export this report.');
+        alert('โปรดเลือกเดือนที่ต้องการจากรายการตัวเลือกก่อนส่งออกรายงานนี้');
         return;
     }
 
@@ -921,7 +1365,7 @@ function triggerReportExport(reportType) {
 
     // Call authorization check
     const token = localStorage.getItem('sb_access_token');
-    
+
     // To download directly via standard link with Bearer token, we can use window.open or fetch.
     // Fetch and download helper is better to keep headers correct:
     fetch(url, {
@@ -929,41 +1373,41 @@ function triggerReportExport(reportType) {
             'Authorization': `Bearer ${token}`
         }
     })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error('Failed to generate report export');
-        }
-        
-        // Extract filename from disposition header
-        const disposition = response.headers.get('Content-Disposition');
-        let filename = `${reportType}_report.csv`;
-        if (disposition && disposition.indexOf('attachment') !== -1) {
-            const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
-            const matches = filenameRegex.exec(disposition);
-            if (matches != null && matches[1]) { 
-                filename = matches[1].replace(/['"]/g, '');
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to generate report export');
             }
-        }
 
-        return response.blob().then(blob => ({ blob, filename }));
-    })
-    .then(({ blob, filename }) => {
-        const urlBlob = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = urlBlob;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        window.URL.revokeObjectURL(urlBlob);
-    })
-    .catch(e => {
-        alert('Error: ' + e.message);
-    });
+            // Extract filename from disposition header
+            const disposition = response.headers.get('Content-Disposition');
+            let filename = `${reportType}_report.csv`;
+            if (disposition && disposition.indexOf('attachment') !== -1) {
+                const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                const matches = filenameRegex.exec(disposition);
+                if (matches != null && matches[1]) {
+                    filename = matches[1].replace(/['"]/g, '');
+                }
+            }
+
+            return response.blob().then(blob => ({ blob, filename }));
+        })
+        .then(({ blob, filename }) => {
+            const urlBlob = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = urlBlob;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(urlBlob);
+        })
+        .catch(e => {
+            alert('Error: ' + e.message);
+        });
 }
 
 // Global modal helpers
-window.closeModal = function(modalId) {
+window.closeModal = function (modalId) {
     document.getElementById(modalId).classList.remove('active');
 };
 

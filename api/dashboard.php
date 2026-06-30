@@ -18,52 +18,49 @@ $user = requireRole(['Admin', 'Finance', 'Auditor', 'Viewer']);
 try {
     $db = getDatabaseConnection();
 
-    // 1. Expected Income (Total Budget based on all records seeded)
-    $stmtExpected = $db->prepare("SELECT COALESCE(SUM(amount), 0) FROM weekly_payment_records WHERE is_deleted = false");
-    $stmtExpected->execute();
-    $expectedIncome = (float)$stmtExpected->fetchColumn();
-
-    // 2. Collected Amount (Verified records)
-    $stmtCollected = $db->prepare("SELECT COALESCE(SUM(amount), 0) FROM weekly_payment_records WHERE status = 'Verified' AND is_deleted = false");
-    $stmtCollected->execute();
-    $collectedAmount = (float)$stmtCollected->fetchColumn();
-
-    // 3. Outstanding Amount (Unpaid or Overdue)
-    $stmtOutstanding = $db->prepare("SELECT COALESCE(SUM(amount), 0) FROM weekly_payment_records WHERE status IN ('Unpaid', 'Overdue') AND is_deleted = false");
-    $stmtOutstanding->execute();
-    $outstandingAmount = (float)$stmtOutstanding->fetchColumn();
-
-    // 4. Pending Slips Verification
-    $stmtPending = $db->prepare("SELECT COUNT(*) FROM slip_submissions WHERE verification_status = 'Pending' AND is_deleted = false");
-    $stmtPending->execute();
-    $pendingSlips = (int)$stmtPending->fetchColumn();
-
-    // 5. Rejected Slips
-    $stmtRejected = $db->prepare("SELECT COUNT(*) FROM slip_submissions WHERE verification_status = 'Rejected' AND is_deleted = false");
-    $stmtRejected->execute();
-    $rejectedSlips = (int)$stmtRejected->fetchColumn();
-
-    // 6. Today's Collection
-    $stmtToday = $db->prepare("
-        SELECT COALESCE(SUM(amount), 0) 
-        FROM payment_transactions 
-        WHERE transaction_type = 'Payment' 
-          AND created_at >= CURRENT_DATE 
-          AND is_deleted = false
+    // 1-3. Consolidate Expected, Collected and Outstanding amounts from weekly_payment_records
+    $stmtWeeklyMetrics = $db->prepare("
+        SELECT 
+            COALESCE(SUM(amount), 0) as expected,
+            COALESCE(SUM(CASE WHEN status = 'Verified' THEN amount ELSE 0 END), 0) as collected,
+            COALESCE(SUM(CASE WHEN status IN ('Unpaid', 'Overdue') THEN amount ELSE 0 END), 0) as outstanding
+        FROM weekly_payment_records 
+        WHERE is_deleted = false
     ");
-    $stmtToday->execute();
-    $todayCollection = (float)$stmtToday->fetchColumn();
+    $stmtWeeklyMetrics->execute();
+    $weeklyMetrics = $stmtWeeklyMetrics->fetch();
+    
+    $expectedIncome = (float)$weeklyMetrics['expected'];
+    $collectedAmount = (float)$weeklyMetrics['collected'];
+    $outstandingAmount = (float)$weeklyMetrics['outstanding'];
 
-    // 7. Monthly Collection (This calendar month)
-    $stmtMonth = $db->prepare("
-        SELECT COALESCE(SUM(amount), 0) 
-        FROM payment_transactions 
-        WHERE transaction_type = 'Payment' 
-          AND created_at >= DATE_TRUNC('month', CURRENT_DATE) 
-          AND is_deleted = false
+    // 4-5. Consolidate Pending and Rejected verification counts from slip_submissions
+    $stmtSlipMetrics = $db->prepare("
+        SELECT 
+            COUNT(CASE WHEN verification_status = 'Pending' THEN 1 END) as pending,
+            COUNT(CASE WHEN verification_status = 'Rejected' THEN 1 END) as rejected
+        FROM slip_submissions 
+        WHERE is_deleted = false
     ");
-    $stmtMonth->execute();
-    $monthlyCollection = (float)$stmtMonth->fetchColumn();
+    $stmtSlipMetrics->execute();
+    $slipMetrics = $stmtSlipMetrics->fetch();
+    
+    $pendingSlips = (int)$slipMetrics['pending'];
+    $rejectedSlips = (int)$slipMetrics['rejected'];
+
+    // 6-7. Consolidate Today and Monthly collection from payment_transactions
+    $stmtTransactionMetrics = $db->prepare("
+        SELECT 
+            COALESCE(SUM(CASE WHEN created_at >= CURRENT_DATE THEN amount ELSE 0 END), 0) as today,
+            COALESCE(SUM(CASE WHEN created_at >= DATE_TRUNC('month', CURRENT_DATE) THEN amount ELSE 0 END), 0) as monthly
+        FROM payment_transactions 
+        WHERE transaction_type = 'Payment' AND is_deleted = false
+    ");
+    $stmtTransactionMetrics->execute();
+    $transactionMetrics = $stmtTransactionMetrics->fetch();
+    
+    $todayCollection = (float)$transactionMetrics['today'];
+    $monthlyCollection = (float)$transactionMetrics['monthly'];
 
     // 8. Collection Rate
     $collectionRate = $expectedIncome > 0 ? ($collectedAmount / $expectedIncome) * 100 : 0;
