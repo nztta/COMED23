@@ -953,9 +953,11 @@
             flex-direction: column;
             box-shadow: var(--shadow-lg);
         }
+
         .mobile-drawer.active {
             right: 0;
         }
+
         .mobile-drawer-header {
             display: flex;
             justify-content: space-between;
@@ -963,12 +965,14 @@
             padding: 1.25rem 1.5rem;
             border-bottom: 1px solid var(--border-glass);
         }
+
         .mobile-drawer-header h3 {
             margin: 0;
             font-family: var(--font-heading);
             color: var(--text-primary);
             font-size: 1.15rem;
         }
+
         .mobile-drawer-body {
             padding: 1.5rem;
             overflow-y: auto;
@@ -976,6 +980,7 @@
             display: flex;
             flex-direction: column;
         }
+
         .mobile-drawer-backdrop {
             position: fixed;
             top: 0;
@@ -990,6 +995,7 @@
             pointer-events: none;
             transition: opacity 0.3s ease;
         }
+
         .mobile-drawer-backdrop.active {
             opacity: 1;
             pointer-events: auto;
@@ -1002,12 +1008,15 @@
                 align-items: center;
                 justify-content: center;
             }
+
             .top-bar-nav {
                 display: none !important;
             }
+
             .top-bar-right {
                 display: none !important;
             }
+
             .portal-container {
                 margin: 0.75rem !important;
             }
@@ -1017,11 +1026,13 @@
         /* DASHBOARD CONTENT & WIZARD RESPONSIVE (Phase 2) */
         /* ========================================== */
         @media (max-width: 768px) {
+
             /* Adjust Welcome Card */
             .pr-welcome-card {
                 padding: 1.25rem !important;
                 margin-bottom: 1rem !important;
             }
+
             .time-clock {
                 font-size: 1.8rem !important;
             }
@@ -1037,6 +1048,7 @@
                 padding: 0.5rem 0 !important;
                 width: 100% !important;
             }
+
             .mobile-drawer .student-details {
                 text-align: center !important;
                 align-items: center !important;
@@ -1044,10 +1056,12 @@
                 flex-direction: column !important;
                 gap: 0.25rem !important;
             }
+
             .mobile-drawer .student-meta-row-1 {
                 justify-content: center !important;
                 flex-wrap: wrap !important;
             }
+
             .mobile-drawer .student-meta-row-2 {
                 justify-content: center !important;
                 flex-wrap: wrap !important;
@@ -1058,16 +1072,21 @@
             #payment-form-card {
                 padding: 1rem !important;
             }
+
             .wizard-steps {
                 gap: 0.25rem !important;
                 margin-bottom: 1.5rem !important;
             }
+
             .wizard-progress-bar {
-                display: none !important; /* Hide line between steps on mobile */
+                display: none !important;
+                /* Hide line between steps on mobile */
             }
+
             .wizard-step span {
                 font-size: 0.65rem !important;
             }
+
             .wizard-step .step-num {
                 width: 28px !important;
                 height: 28px !important;
@@ -1081,31 +1100,36 @@
                 padding: 1rem !important;
                 gap: 1rem !important;
             }
+
             .payment-method-container div[style*="flex: 1"] {
                 min-width: 100% !important;
                 text-align: center !important;
             }
+
             .payment-method-container span[id*="total-amount-display"] {
                 font-size: 1.15rem !important;
             }
 
             /* Step 1 Checkboxes */
             .week-checkboxes-grid {
-                grid-template-columns: 1fr !important; /* Stack checkboxes to full width on mobile */
+                grid-template-columns: 1fr !important;
+                /* Stack checkboxes to full width on mobile */
                 gap: 0.5rem !important;
             }
+
             .form-mode-selectors {
                 flex-direction: column !important;
                 gap: 0.65rem !important;
             }
 
             /* Wizard Views Navigation Buttons */
-            #wstep-view-1 > div[style*="display: flex"],
-            #wstep-view-2 > div[style*="display: flex"],
-            #wstep-view-3 > div[style*="display: flex"]:last-child {
+            #wstep-view-1>div[style*="display: flex"],
+            #wstep-view-2>div[style*="display: flex"],
+            #wstep-view-3>div[style*="display: flex"]:last-child {
                 flex-direction: column-reverse !important;
                 gap: 0.75rem !important;
             }
+
             .wizard-view button {
                 width: 100% !important;
                 padding: 0.75rem 1rem !important;
@@ -1116,15 +1140,18 @@
         /* TABLES TO CARD LIST & MODALS (Phase 3)     */
         /* ========================================== */
         @media (max-width: 768px) {
+
             /* Ledger Table → Card List */
             .ledger-table thead {
                 display: none !important;
             }
+
             .ledger-table,
             .ledger-table tbody {
                 display: block !important;
                 width: 100% !important;
             }
+
             .ledger-table tbody tr {
                 display: flex !important;
                 flex-direction: column !important;
@@ -1135,6 +1162,7 @@
                 background: var(--bg-glass) !important;
                 gap: 0.35rem !important;
             }
+
             .ledger-table td {
                 display: flex !important;
                 justify-content: space-between !important;
@@ -1143,17 +1171,33 @@
                 font-size: 0.85rem !important;
                 border: none !important;
             }
+
             .ledger-table td::before {
                 font-weight: 700;
                 color: var(--text-secondary);
                 font-size: 0.78rem;
                 min-width: 80px;
             }
-            .ledger-table td:nth-child(1)::before { content: "รายการ"; }
-            .ledger-table td:nth-child(2)::before { content: "ผู้ทำ"; }
-            .ledger-table td:nth-child(3)::before { content: "จำนวนเงิน"; }
-            .ledger-table td:nth-child(4)::before { content: "วันที่"; }
-            .ledger-table td:nth-child(5)::before { content: "สถานะ"; }
+
+            .ledger-table td:nth-child(1)::before {
+                content: "รายการ";
+            }
+
+            .ledger-table td:nth-child(2)::before {
+                content: "ผู้ทำ";
+            }
+
+            .ledger-table td:nth-child(3)::before {
+                content: "จำนวนเงิน";
+            }
+
+            .ledger-table td:nth-child(4)::before {
+                content: "วันที่";
+            }
+
+            .ledger-table td:nth-child(5)::before {
+                content: "สถานะ";
+            }
 
             /* Modals → Full width on mobile */
             .modal-content {
@@ -1165,6 +1209,7 @@
                 overflow-y: auto !important;
                 border-radius: var(--border-radius-md) !important;
             }
+
             .modal-header h2 {
                 font-size: 1.05rem !important;
             }
@@ -1179,6 +1224,7 @@
                 flex-wrap: wrap !important;
                 gap: 0.35rem !important;
             }
+
             .filter-btn {
                 font-size: 0.78rem !important;
                 padding: 0.4rem 0.75rem !important;
@@ -1221,7 +1267,9 @@
         <header class="top-bar">
             <!-- Left: Logo & Portal Title & Tabs -->
             <div class="top-bar-left">
-                <button type="button" id="mobile-hamburger-btn" class="action-icon-btn" style="display: none; margin-right: 0.5rem; background: none; border: none; color: var(--text-primary); cursor: pointer;" title="เปิดเมนู">
+                <button type="button" id="mobile-hamburger-btn" class="action-icon-btn"
+                    style="display: none; margin-right: 0.5rem; background: none; border: none; color: var(--text-primary); cursor: pointer;"
+                    title="เปิดเมนู">
                     <i class="fas fa-bars"></i>
                 </button>
                 <img src="logo.png" alt="Logo" class="top-bar-logo">
@@ -1882,7 +1930,8 @@
     <div id="mobile-drawer" class="mobile-drawer">
         <div class="mobile-drawer-header">
             <h3>เมนูระบบ</h3>
-            <button id="mobile-drawer-close" class="modal-close-btn" style="background: none; border: none; font-size: 1.5rem; color: var(--text-secondary); cursor: pointer;">&times;</button>
+            <button id="mobile-drawer-close" class="modal-close-btn"
+                style="background: none; border: none; font-size: 1.5rem; color: var(--text-secondary); cursor: pointer;">&times;</button>
         </div>
         <div class="mobile-drawer-body">
             <!-- Profile Section -->
@@ -1904,9 +1953,9 @@
     <!-- Supabase JS CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Core Configurations -->
-    <script src="js/config.js"></script>
+    <script src="/js/config.js"></script>
     <!-- Portal Logic -->
-    <script src="js/portal.js" defer></script>
+    <script src="/js/portal.js" defer></script>
 
     <!-- Mobile Drawer Controller -->
     <script>
@@ -1936,7 +1985,7 @@
                 const profileContainer = document.getElementById('mobile-profile-container');
                 const navContainer = document.getElementById('mobile-nav-container');
                 const actionsContainer = document.getElementById('mobile-actions-container');
-                
+
                 const desktopLeft = document.querySelector('.top-bar-left');
                 const desktopRight = document.querySelector('.top-bar-right');
                 const topBarActions = document.querySelector('.top-bar-actions');

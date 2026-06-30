@@ -1,25 +1,28 @@
 <!DOCTYPE html>
 <html lang="th" data-theme="light">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>กล่องข้อความแจ้งเตือน | COMED23</title>
-    
+
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;600;800&family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;600;800&family=Sarabun:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+
     <!-- Styling stylesheet -->
     <link rel="stylesheet" href="css/variables.css">
     <link rel="stylesheet" href="css/dashboard.css">
-    
+
     <script>
         // Apply theme immediately to prevent FOUC (flash of unstyled content)
-        (function() {
+        (function () {
             const applyTheme = (theme) => {
                 document.documentElement.setAttribute('data-theme', theme);
             };
@@ -118,6 +121,7 @@
                 opacity: 0;
                 transform: translateY(20px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -172,10 +176,12 @@
             background: rgba(34, 197, 94, 0.1) !important;
             color: #22c55e !important;
         }
+
         .icon-type-rejection {
             background: rgba(239, 68, 68, 0.1) !important;
             color: #ef4444 !important;
         }
+
         .icon-type-cancellation {
             background: rgba(100, 116, 139, 0.1) !important;
             color: #64748b !important;
@@ -287,10 +293,12 @@
                 box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.2);
                 transform: scale(1);
             }
+
             70% {
                 box-shadow: 0 0 0 20px rgba(249, 115, 22, 0);
                 transform: scale(1.05);
             }
+
             100% {
                 box-shadow: 0 0 0 0 rgba(249, 115, 22, 0);
                 transform: scale(1);
@@ -313,6 +321,7 @@
         }
     </style>
 </head>
+
 <body>
     <!-- Background Blob Decorator -->
     <div class="liquid-bg-container">
@@ -325,10 +334,12 @@
             <div class="top-bar-left">
                 <img src="logo.png" alt="Logo" class="top-bar-logo">
                 <span class="top-bar-title">COMED23</span>
-                <span style="font-size: 0.9rem; color: var(--text-secondary); margin-left: 0.5rem;">| กล่องข้อความแจ้งเตือน</span>
+                <span style="font-size: 0.9rem; color: var(--text-secondary); margin-left: 0.5rem;">|
+                    กล่องข้อความแจ้งเตือน</span>
             </div>
             <div class="top-bar-right">
-                <button onclick="goBack()" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
+                <button onclick="goBack()" class="btn btn-secondary"
+                    style="padding: 0.5rem 1rem; font-size: 0.85rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
                     <i class="fas fa-arrow-left"></i> กลับหน้าหลัก
                 </button>
             </div>
@@ -336,11 +347,14 @@
 
         <main style="max-width: 800px; margin: 2rem auto; padding: 0 1rem;">
             <div class="card" style="background: var(--bg-glass); padding: 2rem;">
-                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-glass); padding-bottom: 1rem;">
-                    <h1 style="font-size: 1.6rem; font-family: var(--font-heading); display: flex; align-items: center; gap: 0.5rem; margin: 0; color: var(--text-primary);">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-glass); padding-bottom: 1rem;">
+                    <h1
+                        style="font-size: 1.6rem; font-family: var(--font-heading); display: flex; align-items: center; gap: 0.5rem; margin: 0; color: var(--text-primary);">
                         <i class="fas fa-inbox" style="color: var(--accent);"></i> กล่องข้อความของคุณ
                     </h1>
-                    <button id="mark-all-read-btn" class="btn btn-secondary btn-sm" style="font-size: 0.8rem; display: none; align-items: center; gap: 0.35rem;">
+                    <button id="mark-all-read-btn" class="btn btn-secondary btn-sm"
+                        style="font-size: 0.8rem; display: none; align-items: center; gap: 0.35rem;">
                         <i class="fas fa-check-double"></i> อ่านทั้งหมดแล้ว
                     </button>
                 </div>
@@ -354,34 +368,43 @@
 
     <!-- Notification Full Details Modal -->
     <div id="inbox-detail-modal" class="modal-backdrop">
-        <div class="modal-content" style="max-width: 540px; background: var(--bg-glass); border: 1px solid var(--border-glass);">
+        <div class="modal-content"
+            style="max-width: 540px; background: var(--bg-glass); border: 1px solid var(--border-glass);">
             <div class="modal-header" style="border-bottom: 1px solid var(--border-glass); padding-bottom: 1rem;">
                 <div style="display: flex; flex-direction: column; gap: 0.25rem;">
                     <div style="display: flex; align-items: center; gap: 0.75rem;">
                         <span id="detail-tag" class="badge-cancelled" style="display: none;">ยกเลิกแล้ว</span>
                         <span id="detail-date" style="font-size: 0.75rem; color: var(--text-muted);">วันที่</span>
                     </div>
-                    <h2 id="detail-title" style="font-family: var(--font-heading); color: var(--text-primary); font-size: 1.3rem; margin: 0; margin-top: 0.5rem; line-height: 1.4;">
+                    <h2 id="detail-title"
+                        style="font-family: var(--font-heading); color: var(--text-primary); font-size: 1.3rem; margin: 0; margin-top: 0.5rem; line-height: 1.4;">
                         หัวเรื่องแจ้งเตือน
                     </h2>
                 </div>
-                <button id="close-modal-x" class="modal-close-btn" style="background: none; border: none; font-size: 1.5rem; color: var(--text-secondary); cursor: pointer; align-self: flex-start;">&times;</button>
+                <button id="close-modal-x" class="modal-close-btn"
+                    style="background: none; border: none; font-size: 1.5rem; color: var(--text-secondary); cursor: pointer; align-self: flex-start;">&times;</button>
             </div>
-            <div class="modal-body" style="padding: 1.5rem 0; line-height: 1.6; color: var(--text-primary); font-size: 0.95rem; white-space: pre-line;" id="detail-message">
+            <div class="modal-body"
+                style="padding: 1.5rem 0; line-height: 1.6; color: var(--text-primary); font-size: 0.95rem; white-space: pre-line;"
+                id="detail-message">
                 เนื้อหาแจ้งเตือนรายละเอียด...
             </div>
-            <div id="detail-action-container" style="display: flex; justify-content: flex-end; padding-top: 1rem; border-top: 1px solid var(--border-glass); gap: 0.75rem;">
-                <a id="detail-go-payment-btn" href="student.html" class="btn btn-primary" style="text-decoration: none; padding: 0.6rem 1.5rem; font-size: 0.9rem;">
+            <div id="detail-action-container"
+                style="display: flex; justify-content: flex-end; padding-top: 1rem; border-top: 1px solid var(--border-glass); gap: 0.75rem;">
+                <a id="detail-go-payment-btn" href="student.html" class="btn btn-primary"
+                    style="text-decoration: none; padding: 0.6rem 1.5rem; font-size: 0.9rem;">
                     <i class="fas fa-file-invoice-dollar"></i> ชำระเงินทันที
                 </a>
-                <button type="button" id="close-detail-btn" class="btn btn-secondary" style="padding: 0.6rem 1.5rem; cursor: pointer;">ปิดหน้าต่าง</button>
+                <button type="button" id="close-detail-btn" class="btn btn-secondary"
+                    style="padding: 0.6rem 1.5rem; cursor: pointer;">ปิดหน้าต่าง</button>
             </div>
         </div>
     </div>
 
     <!-- Core configurations and JS script -->
-    <script src="js/config.js"></script>
-    <script src="js/auth.js"></script>
+    <script src="/js/config.js"></script>
+    <script src="/js/auth.js"></script>
+
     <script>
         let notifications = [];
 
@@ -403,7 +426,7 @@
             const modal = document.getElementById('inbox-detail-modal');
             const closeX = document.getElementById('close-modal-x');
             const closeBtn = document.getElementById('close-detail-btn');
-            
+
             const closeModal = () => modal.classList.remove('active');
             if (closeX) closeX.onclick = closeModal;
             if (closeBtn) closeBtn.onclick = closeModal;
@@ -478,10 +501,10 @@
                 const item = document.createElement('div');
                 item.className = `inbox-item ${!n.is_read ? 'unread' : ''}`;
                 item.style.animationDelay = `${idx * 0.05}s`;
-                
-                const createdDate = new Date(n.created_at).toLocaleString('th-TH', { 
-                    year: 'numeric', 
-                    month: 'short', 
+
+                const createdDate = new Date(n.created_at).toLocaleString('th-TH', {
+                    year: 'numeric',
+                    month: 'short',
                     day: 'numeric',
                     hour: '2-digit',
                     minute: '2-digit'
@@ -489,7 +512,7 @@
 
                 let icon = '<i class="fas fa-bell"></i>';
                 let iconClass = '';
-                
+
                 if (n.type === 'Approval' || n.type === 'SlipApproved') {
                     icon = '<i class="fas fa-check-circle"></i>';
                     iconClass = 'icon-type-approval';
@@ -578,7 +601,7 @@
                     },
                     body: JSON.stringify({ id: id })
                 });
-                
+
                 // Set local state read
                 const notif = notifications.find(x => x.id === id);
                 if (notif) notif.is_read = true;
@@ -589,4 +612,5 @@
         }
     </script>
 </body>
+
 </html>
