@@ -110,17 +110,57 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 // --- Student Login Flow ---
                 try {
-                    const response = await fetch(`${CONFIG.API_BASE_URL}/students.php?action=validate&student_id=${encodeURIComponent(identity)}&password=${encodeURIComponent(credential)}`);
-                    const result = await response.json();
+                    const url =
+                        `${CONFIG.API_BASE_URL}/students.php?action=validate` +
+                        `&student_id=${encodeURIComponent(identity)}` +
+                        `&password=${encodeURIComponent(credential)}`;
 
-                    if (result.status === 'success') {
-                        handleRememberMe(identity, credential);
-                        localStorage.setItem('student_session', JSON.stringify(result.data));
-                        window.location.href = 'student.html';
-                    } else {
-                        showAlert(result.message || 'รหัสประจำตัวนักศึกษาหรือรหัสผ่านไม่ถูกต้อง');
+                    console.log("Request URL:", url);
+
+                    const response = await fetch(url, {
+                        method: "GET",
+                        headers: {
+                            "Accept": "application/json"
+                        }
+                    });
+
+                    console.log("Status:", response.status);
+                    console.log("Content-Type:", response.headers.get("content-type"));
+
+                    const raw = await response.text();
+                    console.log("Raw Response:", raw);
+
+                    let result;
+
+                    try {
+                        result = JSON.parse(raw);
+                    } catch (e) {
+                        console.error("API ไม่ได้ส่ง JSON");
+                        console.error(raw);
+
+                        showAlert(
+                            "API ส่งข้อมูลไม่ถูกต้อง กรุณาตรวจสอบ Console (F12)"
+                        );
+
                         submitBtn.disabled = false;
-                        submitBtn.textContent = 'เข้าสู่ระบบนักศึกษา';
+                        submitBtn.textContent = "เข้าสู่ระบบนักศึกษา";
+                        return;
+                    }
+
+                    if (result.status === "success") {
+                        handleRememberMe(identity, credential);
+
+                        localStorage.setItem(
+                            "student_session",
+                            JSON.stringify(result.data)
+                        );
+
+                        window.location.href = "student.html";
+                    } else {
+                        showAlert(result.message || "รหัสประจำตัวนักศึกษาหรือรหัสผ่านไม่ถูกต้อง");
+
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = "เข้าสู่ระบบนักศึกษา";
                     }
                 } catch (err) {
                     showAlert('ระบบเครือข่ายขัดข้อง ไม่สามารถเชื่อมต่อระบบตรวจสอบสิทธิ์ได้');
