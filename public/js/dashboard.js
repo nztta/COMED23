@@ -663,13 +663,13 @@ function renderSettingsGrid(settings) {
     settings.forEach(s => {
         const card = document.createElement('div');
         card.className = `card setting-card status-${s.status.toLowerCase()}`;
-
+        card.style.width = '500px';
         card.innerHTML = `
-            <div class="setting-card-header">
+            <div class="setting-card-header" >
                 <h3>${monthNames[s.month - 1]} ${s.year}</h3>
                 <span class="badge badge-${s.status === 'Open' ? 'green' : (s.status === 'Closed' ? 'yellow' : 'gray')}">${statusTranslations[s.status] || s.status}</span>
             </div>
-            <div class="setting-card-body">
+            <div class=" setting-card-body">
                 <div class="setting-item"><strong>ค่าบำรุงรายสัปดาห์:</strong> ${s.weekly_fee} บาท</div>
                 <div class="setting-item"><strong>จำนวนสัปดาห์เก็บเงิน:</strong> ${s.number_of_weeks} สัปดาห์</div>
                 <div class="setting-item"><strong>วันที่เปิดระบบ:</strong> ${s.open_date}</div>
@@ -695,7 +695,7 @@ async function deleteSetting(id) {
         "3. ส่งข้อความแจ้งยกเลิกไปยังกล่องข้อความนักศึกษาและ Discord\n\n" +
         "คุณต้องการดำเนินการต่อหรือไม่?"
     );
-    
+
     if (!isConfirmed) return;
 
     try {
@@ -815,7 +815,7 @@ function recalculateAutoDates() {
 
     // Set Close Date to a far future date (never closes)
     if (closeDateInput) {
-        closeDateInput.value = '2099-12-31';
+        closeDateInput.value = '-';
     }
 
     // Generate calculated due dates
@@ -1152,10 +1152,10 @@ document.querySelectorAll('.decision-btn').forEach(btn => {
 
             if (result.status === 'success') {
                 const oldIndex = verificationQueue.findIndex(s => s.id === activeSubId);
-                
+
                 // Load updated queue in background
                 await loadVerificationQueue();
-                
+
                 // If item is still in queue (e.g. filter is 'All'), next index is oldIndex + 1
                 // Otherwise (item removed), next index is the same oldIndex (which points to next item)
                 const isItemStillInQueue = verificationQueue.some(s => s.id === activeSubId);
@@ -1210,7 +1210,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Register Verification Queue Navigation Button Click Handlers
     const prevBtn = document.getElementById('prev-queue-btn');
     const nextBtn = document.getElementById('next-queue-btn');
-    
+
     if (prevBtn) {
         prevBtn.addEventListener('click', () => {
             navigateVerifyQueue(-1);

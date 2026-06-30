@@ -1,0 +1,7 @@
+{
+    "name": "project/web",
+    "type": "project",
+    "require": {
+        "php": "^8.3"
+    }
+}

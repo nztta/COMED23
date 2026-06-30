@@ -204,38 +204,68 @@ if ($method === 'POST') {
 
         } else {
             // Create New Configuration
-            // Check duplicate month/year
-            $checkStmt = $db->prepare("SELECT id FROM monthly_payment_settings WHERE month = :month AND year = :year AND is_deleted = false");
+            // Check duplicate month/year (including soft-deleted)
+            $checkStmt = $db->prepare("SELECT id, is_deleted FROM monthly_payment_settings WHERE month = :month AND year = :year");
             $checkStmt->execute(['month' => $month, 'year' => $year]);
-            if ($checkStmt->fetch()) {
+            $existingRow = $checkStmt->fetch();
+
+            if ($existingRow && !$existingRow['is_deleted']) {
                 $db->rollBack();
                 sendError('รายการเรียกเก็บเงินของเดือนและปีนี้มีอยู่แล้วในระบบ');
             }
 
-            $insertStmt = $db->prepare("
-                INSERT INTO monthly_payment_settings (
-                    month, year, weekly_fee, number_of_weeks, open_date, due_dates, close_date, status, title, description, custom_members, created_by, updated_by
-                ) VALUES (
-                    :month, :year, :weekly_fee, :number_of_weeks, :open_date, :due_dates::DATE[], :close_date, :status, :title, :description, :custom_members, :created_by, :updated_by
-                ) RETURNING id
-            ");
-            $insertStmt->execute([
-                'month' => $month,
-                'year' => $year,
-                'weekly_fee' => $weeklyFee,
-                'number_of_weeks' => $numberOfWeeks,
-                'open_date' => $openDate,
-                'due_dates' => $pgDueDates,
-                'close_date' => $closeDate,
-                'status' => $status,
-                'title' => $title,
-                'description' => $description,
-                'custom_members' => $customMembersJson,
-                'created_by' => $user['id'],
-                'updated_by' => $user['id']
-            ]);
-
-            $id = $insertStmt->fetchColumn();
+            if ($existingRow && $existingRow['is_deleted']) {
+                // Restore soft-deleted record with new data
+                $id = $existingRow['id'];
+                $restoreStmt = $db->prepare("
+                    UPDATE monthly_payment_settings 
+                    SET weekly_fee = :weekly_fee, number_of_weeks = :number_of_weeks, 
+                        open_date = :open_date, due_dates = :due_dates::DATE[], close_date = :close_date, 
+                        status = :status, title = :title, description = :description, 
+                        custom_members = :custom_members, is_deleted = false,
+                        created_by = :created_by, updated_by = :updated_by, updated_at = NOW()
+                    WHERE id = :id
+                ");
+                $restoreStmt->execute([
+                    'id' => $id,
+                    'weekly_fee' => $weeklyFee,
+                    'number_of_weeks' => $numberOfWeeks,
+                    'open_date' => $openDate,
+                    'due_dates' => $pgDueDates,
+                    'close_date' => $closeDate,
+                    'status' => $status,
+                    'title' => $title,
+                    'description' => $description,
+                    'custom_members' => $customMembersJson,
+                    'created_by' => $user['id'],
+                    'updated_by' => $user['id']
+                ]);
+            } else {
+                // Fresh insert
+                $insertStmt = $db->prepare("
+                    INSERT INTO monthly_payment_settings (
+                        month, year, weekly_fee, number_of_weeks, open_date, due_dates, close_date, status, title, description, custom_members, created_by, updated_by
+                    ) VALUES (
+                        :month, :year, :weekly_fee, :number_of_weeks, :open_date, :due_dates::DATE[], :close_date, :status, :title, :description, :custom_members, :created_by, :updated_by
+                    ) RETURNING id
+                ");
+                $insertStmt->execute([
+                    'month' => $month,
+                    'year' => $year,
+                    'weekly_fee' => $weeklyFee,
+                    'number_of_weeks' => $numberOfWeeks,
+                    'open_date' => $openDate,
+                    'due_dates' => $pgDueDates,
+                    'close_date' => $closeDate,
+                    'status' => $status,
+                    'title' => $title,
+                    'description' => $description,
+                    'custom_members' => $customMembersJson,
+                    'created_by' => $user['id'],
+                    'updated_by' => $user['id']
+                ]);
+                $id = $insertStmt->fetchColumn();
+            }
 
             // Populate weekly records for targeted students
             $insertRecordStmt = $db->prepare("

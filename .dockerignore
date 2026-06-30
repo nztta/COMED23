@@ -1,0 +1,13 @@
+.git
+.github
+.vscode
+.idea
+node_modules
+vendor
+database
+*.sql
+*.log
+.env
+.env.*
+Dockerfile.old
+README.md
