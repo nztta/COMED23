@@ -7,6 +7,7 @@ let charts = {}; // references to ApexCharts objects
 let studentList = [];
 let monthSettingsList = [];
 let verificationQueue = [];
+let html5QrcodeScanner = null;
 
 // DOM Ready Handler
 document.addEventListener('DOMContentLoaded', async () => {
@@ -22,6 +23,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 3. Setup Navigation Menu tabs
     setupTabNavigation();
+    setupMobileSidebar();
 
     // 4. Initial Load
     const persistedTab = sessionStorage.getItem('admin_active_tab') || 'overview';
@@ -144,7 +146,40 @@ function setupTabNavigation() {
     }
 }
 
+function setupMobileSidebar() {
+    const hamburgerBtn = document.getElementById('admin-hamburger-btn');
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+
+    if (hamburgerBtn && sidebar && overlay) {
+        hamburgerBtn.addEventListener('click', () => {
+            sidebar.classList.add('open');
+            overlay.style.display = 'block';
+        });
+
+        overlay.addEventListener('click', () => {
+            sidebar.classList.remove('open');
+            overlay.style.display = 'none';
+        });
+
+        // Close sidebar when clicking menu items on mobile
+        document.querySelectorAll('.menu-item').forEach(item => {
+            item.addEventListener('click', () => {
+                if (window.innerWidth <= 768) {
+                    sidebar.classList.remove('open');
+                    overlay.style.display = 'none';
+                }
+            });
+        });
+    }
+}
+
 async function switchTab(tabId) {
+    // Stop camera scanner if active and we are switching away from activities
+    if (activeTab === 'activities' && tabId !== 'activities') {
+        stopActivitiesScanner();
+    }
+
     activeTab = tabId;
     sessionStorage.setItem('admin_active_tab', tabId);
 
@@ -166,22 +201,25 @@ async function switchTab(tabId) {
     // Trigger tab-specific loaders
     switch (tabId) {
         case 'overview':
-            await loadDashboardMetrics();
+            loadDashboardMetrics();
             break;
         case 'students':
-            await loadStudentsList();
+            loadStudentsList();
             break;
         case 'settings':
-            await loadMonthSettings();
+            loadMonthSettings();
             break;
         case 'queue':
-            await loadVerificationQueue();
+            loadVerificationQueue();
             break;
         case 'audit':
-            await loadAuditTrail();
+            loadAuditTrail();
             break;
         case 'reports':
             setupReportsPanel();
+            break;
+        case 'activities':
+            initActivitiesScanner();
             break;
     }
 }
@@ -476,7 +514,10 @@ function renderStudentsTable(students) {
         return;
     }
 
-    students.forEach(s => {
+    const limit = 50;
+    const paginated = students.slice(0, limit);
+
+    paginated.forEach(s => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td><strong>${s.student_id}</strong></td>
@@ -492,7 +533,46 @@ function renderStudentsTable(students) {
         `;
         tableBody.appendChild(tr);
     });
+
+    if (students.length > limit) {
+        const tr = document.createElement('tr');
+        tr.id = 'students-load-more-row';
+        tr.innerHTML = `
+            <td colspan="7" class="text-center" style="padding: 1rem 0;">
+                <button class="btn btn-secondary btn-sm" style="font-family: var(--font-heading);" onclick="showAllStudentsInTable()">
+                    แสดงทั้งหมด (${students.length} คน)
+                </button>
+            </td>
+        `;
+        tableBody.appendChild(tr);
+    }
 }
+
+window.showAllStudentsInTable = function () {
+    const tableBody = document.getElementById('students-table-body');
+    const loadMoreRow = document.getElementById('students-load-more-row');
+    if (loadMoreRow) {
+        loadMoreRow.remove();
+    }
+
+    const remaining = studentList.slice(50);
+    remaining.forEach(s => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><strong>${s.student_id}</strong></td>
+            <td>${(s.prefix || '') + s.full_name}</td>
+            <td>${s.nickname || '-'}</td>
+            <td>${s.class}</td>
+            <td>${s.academic_year}</td>
+            <td><span class="badge badge-${s.status === 'Active' ? 'green' : 'gray'}">${s.status === 'Active' ? 'เปิดใช้งาน' : 'ระงับสิทธิ์'}</span></td>
+            <td>
+                <button class="btn btn-secondary btn-sm" onclick="openEditStudentModal('${s.id}')">แก้ไข</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteStudent('${s.id}')">ลบ</button>
+            </td>
+        `;
+        tableBody.appendChild(tr);
+    });
+};
 
 // Student Search filter
 const studentSearchInput = document.getElementById('student-search');
@@ -1022,7 +1102,10 @@ function renderQueueTable(submissions) {
         return;
     }
 
-    submissions.forEach(s => {
+    const limit = 50;
+    const paginated = submissions.slice(0, limit);
+
+    paginated.forEach(s => {
         const tr = document.createElement('tr');
         const formattedWeeks = s.weeks.map(w => `สัปดาห์ที่ ${w}`).join(', ');
         const submittedDate = new Date(s.submitted_at).toLocaleString('th-TH');
@@ -1040,7 +1123,53 @@ function renderQueueTable(submissions) {
         `;
         tableBody.appendChild(tr);
     });
+
+    if (submissions.length > limit) {
+        const tr = document.createElement('tr');
+        tr.id = 'queue-load-more-row';
+        tr.innerHTML = `
+            <td colspan="7" class="text-center" style="padding: 1rem 0;">
+                <button class="btn btn-secondary btn-sm" style="font-family: var(--font-heading);" onclick="showAllQueueInTable()">
+                    แสดงทั้งหมด (${submissions.length} รายการ)
+                </button>
+            </td>
+        `;
+        tableBody.appendChild(tr);
+    }
 }
+
+window.showAllQueueInTable = function () {
+    const tableBody = document.getElementById('queue-table-body');
+    const loadMoreRow = document.getElementById('queue-load-more-row');
+    if (loadMoreRow) {
+        loadMoreRow.remove();
+    }
+
+    const monthNames = [
+        'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+    ];
+
+    const remaining = verificationQueue.slice(50);
+    remaining.forEach(s => {
+        const tr = document.createElement('tr');
+        const formattedWeeks = s.weeks.map(w => `สัปดาห์ที่ ${w}`).join(', ');
+        const submittedDate = new Date(s.submitted_at).toLocaleString('th-TH');
+
+        tr.innerHTML = `
+            <td><strong>#${s.id.substring(0, 8).toUpperCase()}</strong></td>
+            <td>${s.student_code} - ${s.student_name}</td>
+            <td>${monthNames[s.month - 1]} ${s.year}</td>
+            <td>${formattedWeeks}</td>
+            <td><strong>${s.amount} บาท</strong></td>
+            <td>${submittedDate}</td>
+            <td>
+                <button class="btn btn-primary btn-sm" onclick="openVerifyDialog('${s.id}')">ตรวจสอบสลิป</button>
+            </td>
+        `;
+        tableBody.appendChild(tr);
+    });
+};
 
 // Verify Dialogue Modal Actions
 const verifyModal = document.getElementById('verify-modal');
@@ -1407,10 +1536,435 @@ function triggerReportExport(reportType) {
 }
 
 // Global modal helpers
+window.openModal = function (modalId) {
+    document.getElementById(modalId).classList.add('active');
+};
 window.closeModal = function (modalId) {
     document.getElementById(modalId).classList.remove('active');
 };
 
 function empty(val) {
     return val === null || val === undefined || val === '';
+}
+
+// -----------------------------------------------------------------------------
+// View 7: Activity Attendance QR Scanner
+// -----------------------------------------------------------------------------
+let scannerRunning = false;
+let currentSelectedActivity = null;
+
+function initActivitiesScanner() {
+    const toggleBtn = document.getElementById('toggle-scanner-btn');
+    const refreshBtn = document.getElementById('refresh-attendance-btn');
+
+    if (toggleBtn) {
+        toggleBtn.replaceWith(toggleBtn.cloneNode(true));
+        const newToggleBtn = document.getElementById('toggle-scanner-btn');
+        newToggleBtn.addEventListener('click', toggleActivitiesScanner);
+    }
+
+    if (refreshBtn) {
+        refreshBtn.replaceWith(refreshBtn.cloneNode(true));
+        const newRefreshBtn = document.getElementById('refresh-attendance-btn');
+        newRefreshBtn.addEventListener('click', loadActivitiesAttendanceList);
+    }
+
+    // Reset state
+    currentSelectedActivity = null;
+    document.getElementById('selected-activity-bar').innerHTML = `
+        <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">สถานะ: <span style="font-weight: bold; color: var(--accent);">ยังไม่ได้เลือกกิจกรรม</span></p>
+        <p style="margin: 0.25rem 0 0 0; font-size: 0.8rem; color: var(--text-muted);">กรุณากดปุ่ม <b>"เลือกเช็คชื่อ"</b> ในรายการกิจกรรมเพื่อเปิดกล้อง</p>
+    `;
+    document.getElementById('scanner-actions-area').style.display = 'none';
+    document.getElementById('attendance-list-card').style.display = 'none';
+
+    // Load lists
+    loadActivitiesList();
+}
+
+async function loadActivitiesList() {
+    const listBody = document.getElementById('activities-list-body');
+    if (!listBody) return;
+
+    try {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/activities.php?action=list_activities&_t=${Date.now()}`, {
+            headers: getAuthHeaders()
+        });
+        const result = await response.json();
+
+        if (result.status === 'success') {
+            const list = result.data || [];
+            if (list.length === 0) {
+                listBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="text-center text-muted" style="padding: 2rem;">ยังไม่มีกิจกรรมในระบบ กดปุ่ม "เพิ่มกิจกรรมใหม่" เพื่อเริ่มสร้าง</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            listBody.innerHTML = list.map(a => {
+                const startStr = a.check_in_start ? new Date(a.check_in_start).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : 'ไม่กำหนด';
+                const endStr = a.check_in_end ? new Date(a.check_in_end).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : 'ไม่กำหนด';
+
+                const statusBadge = a.status === 'Open'
+                    ? `<span class="badge" style="background: rgba(34, 197, 94, 0.1); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.2); border-radius: 12px; padding: 0.25rem 0.5rem; font-size: 0.8rem; font-weight: 600;">(Open)</span>`
+                    : `<span class="badge" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 12px; padding: 0.25rem 0.5rem; font-size: 0.8rem; font-weight: 600;">(Closed)</span>`;
+
+                const isSelected = currentSelectedActivity && currentSelectedActivity.id === a.id;
+                const selectBtnStyle = isSelected
+                    ? `background: var(--accent); color: white; border-color: var(--accent);`
+                    : `background: transparent; color: var(--text-primary); border: 1px solid var(--border-glass);`;
+
+                return `
+                    <tr>
+                        <td style="font-weight: 700; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${a.name}</td>
+                        <td>${statusBadge}</td>
+                        <td style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.3;">
+                            เริ่ม: ${startStr}<br>สิ้นสุด: ${endStr}
+                        </td>
+                        <td style="font-weight: bold; text-align: center;">${a.attendance_count} คน</td>
+                        <td>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.4rem 0.75rem; font-family: var(--font-heading); ${selectBtnStyle}" 
+                                    onclick="selectActivityForCheckIn('${a.id}', '${encodeURIComponent(a.name)}', '${a.status}', '${a.check_in_start || ''}', '${a.check_in_end || ''}')">
+                                    ${isSelected ? '<i class="fas fa-check"></i> เลือกแล้ว' : 'เลือกเช็คชื่อ'}
+                                </button>
+                                <button class="btn btn-secondary toggle-act-btn" style="font-size: 0.8rem; padding: 0.4rem 0.75rem; font-family: var(--font-heading);" 
+                                    onclick="toggleActivityStatus('${a.id}')">
+                                    เปิด/ปิด
+                                </button>
+                                <button class="btn btn-secondary delete-act-btn" style="font-size: 0.8rem; padding: 0.4rem 0.75rem; font-family: var(--font-heading); color: #ef4444;" 
+                                    onclick="deleteActivity('${a.id}', '${encodeURIComponent(a.name)}')">
+                                    ลบ
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        } else {
+            listBody.innerHTML = `<tr><td colspan="5" class="text-center text-muted">${result.message}</td></tr>`;
+        }
+    } catch (e) {
+        listBody.innerHTML = `<tr><td colspan="5" class="text-center text-muted">เกิดข้อผิดพลาดในการโหลดรายการกิจกรรม</td></tr>`;
+        console.error(e);
+    }
+}
+
+async function handleCreateActivitySubmit() {
+    const name = document.getElementById('activity-name').value.trim();
+    const start = document.getElementById('activity-start-time').value;
+    const end = document.getElementById('activity-end-time').value;
+    const status = document.getElementById('activity-status').value;
+
+    if (!name) {
+        alert('กรุณาระบุชื่อกิจกรรม');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/activities.php?action=create_activity`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ name, check_in_start: start, check_in_end: end, status })
+        });
+        const result = await response.json();
+
+        if (result.status === 'success') {
+            alert('สร้างกิจกรรมสำเร็จ');
+            closeModal('activity-create-modal');
+            document.getElementById('activity-create-form').reset();
+            loadActivitiesList();
+        } else {
+            alert('ล้มเหลว: ' + result.message);
+        }
+    } catch (e) {
+        alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+        console.error(e);
+    }
+}
+
+async function selectActivityForCheckIn(id, nameEscaped, status, start, end) {
+    const name = decodeURIComponent(nameEscaped);
+    currentSelectedActivity = { id, name, status, start, end };
+
+    // Update active row highlighting
+    await loadActivitiesList();
+
+    // Update scanner panel
+    const statusText = status === 'Open'
+        ? `<span style="color: #22c55e; font-weight: bold;">เปิดเช็คชื่อ</span>`
+        : `<span style="color: #ef4444; font-weight: bold;">ปิดเช็คชื่อ</span>`;
+
+    let timeLimits = '';
+    if (start || end) {
+        const startStr = start ? new Date(start).toLocaleString('th-TH') : 'ไม่จำกัด';
+        const endStr = end ? new Date(end).toLocaleString('th-TH') : 'ไม่จำกัด';
+        timeLimits = `<br><span style="font-size: 0.8rem; color: var(--text-muted);">ช่วงเวลาสแกน: ${startStr} - ${endStr}</span>`;
+    }
+
+    document.getElementById('selected-activity-bar').innerHTML = `
+        <p style="margin: 0; color: var(--text-primary); font-size: 1rem; font-weight: 700;">กิจกรรม: ${name}</p>
+        <p style="margin: 0.25rem 0 0 0; font-size: 0.9rem; color: var(--text-secondary);">สถานะ: ${statusText}${timeLimits}</p>
+    `;
+
+    document.getElementById('scanner-actions-area').style.display = 'block';
+    document.getElementById('attendance-list-card').style.display = 'block';
+    document.getElementById('scan-feedback').style.display = 'none';
+
+    // Stop scanner if already running
+    if (scannerRunning) {
+        stopActivitiesScanner();
+    }
+
+    loadActivitiesAttendanceList();
+}
+
+async function toggleActivityStatus(activityId) {
+    try {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/activities.php?action=toggle_activity_status`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ activity_id: activityId })
+        });
+        const result = await response.json();
+
+        if (result.status === 'success') {
+            if (currentSelectedActivity && currentSelectedActivity.id === activityId) {
+                // Refresh selection details (which also re-renders the list)
+                const actName = currentSelectedActivity.name;
+                const actStart = currentSelectedActivity.start;
+                const actEnd = currentSelectedActivity.end;
+                await selectActivityForCheckIn(activityId, encodeURIComponent(actName), result.data.status, actStart, actEnd);
+            } else {
+                await loadActivitiesList();
+            }
+        } else {
+            alert('ข้อผิดพลาด: ' + result.message);
+        }
+    } catch (e) {
+        alert('เกิดข้อผิดพลาดในการเปลี่ยนสถานะกิจกรรม');
+        console.error(e);
+    }
+}
+
+async function deleteActivity(activityId, nameEscaped) {
+    const name = decodeURIComponent(nameEscaped);
+    if (!confirm(`คุณต้องการลบกิจกรรม "${name}" และบันทึกการเช็คชื่อทั้งหมดหรือไม่?\n(การดำเนินการนี้ไม่สามารถย้อนกลับได้)`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/activities.php?action=delete_activity`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ activity_id: activityId })
+        });
+        const result = await response.json();
+
+        if (result.status === 'success') {
+            alert('ลบกิจกรรมสำเร็จ');
+            if (currentSelectedActivity && currentSelectedActivity.id === activityId) {
+                initActivitiesScanner();
+            } else {
+                await loadActivitiesList();
+            }
+        } else {
+            alert('ล้มเหลว: ' + result.message);
+        }
+    } catch (e) {
+        alert('เกิดข้อผิดพลาดในการลบข้อมูล');
+        console.error(e);
+    }
+}
+
+// Bind to window to guarantee global scope accessibility
+window.selectActivityForCheckIn = selectActivityForCheckIn;
+window.toggleActivityStatus = toggleActivityStatus;
+window.deleteActivity = deleteActivity;
+
+function toggleActivitiesScanner() {
+    if (!currentSelectedActivity) {
+        alert('กรุณาเลือกกิจกรรมก่อน');
+        return;
+    }
+
+    if (scannerRunning) {
+        stopActivitiesScanner();
+    } else {
+        startActivitiesScanner();
+    }
+}
+
+function startActivitiesScanner() {
+    const readerContainer = document.getElementById('qr-reader-container');
+    const toggleBtn = document.getElementById('toggle-scanner-btn');
+    const statusText = document.getElementById('scanner-status-text');
+
+    if (!toggleBtn || !statusText || !readerContainer) return;
+
+    readerContainer.style.display = 'block';
+    toggleBtn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+        ปิดกล้องสแกน
+    `;
+    toggleBtn.className = 'btn btn-secondary';
+    statusText.textContent = 'กล้องกำลังสแกน...';
+    scannerRunning = true;
+
+    html5QrcodeScanner = new Html5Qrcode("qr-reader");
+
+    const qrCodeSuccessCallback = async (decodedText, decodedResult) => {
+        stopActivitiesScanner();
+        await handleActivityCheckIn(decodedText, currentSelectedActivity.id);
+
+        setTimeout(() => {
+            if (activeTab === 'activities' && !scannerRunning && currentSelectedActivity) {
+                startActivitiesScanner();
+            }
+        }, 2500);
+    };
+
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+    html5QrcodeScanner.start(
+        { facingMode: "environment" },
+        config,
+        qrCodeSuccessCallback
+    ).catch(err => {
+        console.error("Unable to start scanner: ", err);
+        statusText.textContent = 'ไม่สามารถเข้าถึงกล้องถ่ายรูปได้';
+        stopActivitiesScanner();
+    });
+}
+
+function stopActivitiesScanner() {
+    const readerContainer = document.getElementById('qr-reader-container');
+    const toggleBtn = document.getElementById('toggle-scanner-btn');
+    const statusText = document.getElementById('scanner-status-text');
+
+    if (html5QrcodeScanner) {
+        html5QrcodeScanner.stop().then(() => {
+            html5QrcodeScanner = null;
+        }).catch(err => {
+            console.warn("Error stopping scanner: ", err);
+            html5QrcodeScanner = null;
+        });
+    }
+
+    if (readerContainer) readerContainer.style.display = 'none';
+    if (toggleBtn) {
+        toggleBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            เปิดกล้องสแกน QR Code
+        `;
+        toggleBtn.className = 'btn btn-primary';
+    }
+    if (statusText) statusText.textContent = 'กล้องปิดอยู่';
+    scannerRunning = false;
+}
+
+async function handleActivityCheckIn(studentId, activityId) {
+    const feedback = document.getElementById('scan-feedback');
+    const icon = document.getElementById('scan-feedback-icon');
+    const title = document.getElementById('scan-feedback-title');
+    const msg = document.getElementById('scan-feedback-msg');
+
+    if (!feedback || !icon || !title || !msg) return;
+
+    feedback.style.display = 'block';
+    feedback.style.borderLeftColor = 'var(--accent)';
+    icon.innerHTML = '⏳';
+    title.textContent = 'กำลังเช็คชื่อ...';
+    msg.textContent = `รหัสนักศึกษา: ${studentId}`;
+
+    try {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/activities.php?action=check_in`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ student_id: studentId, activity_id: activityId })
+        });
+
+        const result = await response.json();
+
+        if (result.status === 'success') {
+            feedback.style.borderLeftColor = '#22c55e';
+            icon.innerHTML = '✅';
+            title.textContent = 'เช็คชื่อสำเร็จ';
+            msg.textContent = `${result.data.student_name} (${result.data.student_id}) ห้อง ${result.data.student_class} เช็คชื่อเสร็จสิ้น`;
+
+            await loadActivitiesAttendanceList();
+            await loadActivitiesList(); // Update counts
+        } else {
+            feedback.style.borderLeftColor = '#ef4444';
+            icon.innerHTML = '❌';
+            title.textContent = 'เช็คชื่อล้มเหลว';
+            msg.textContent = result.message || 'เกิดข้อผิดพลาดในการตรวจสอบสิทธิ์';
+        }
+    } catch (e) {
+        feedback.style.borderLeftColor = '#ef4444';
+        icon.innerHTML = '❌';
+        title.textContent = 'เช็คชื่อล้มเหลว';
+        msg.textContent = 'เกิดข้อผิดพลาดในการติดต่อฐานข้อมูล';
+        console.error(e);
+    }
+}
+
+async function loadActivitiesAttendanceList() {
+    const tableBody = document.getElementById('attendance-table-body');
+    const tableTitle = document.getElementById('attendance-table-title');
+
+    if (!tableBody || !currentSelectedActivity) return;
+
+    if (tableTitle) tableTitle.textContent = `รายชื่อผู้เช็คชื่อกิจกรรม: ${currentSelectedActivity.name}`;
+
+    try {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/activities.php?action=list_attendance&activity_id=${currentSelectedActivity.id}`, {
+            headers: getAuthHeaders()
+        });
+        const result = await response.json();
+
+        if (result.status === 'success') {
+            const list = result.data || [];
+            if (list.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="text-center text-muted" style="padding: 2rem;">ยังไม่มีผู้เช็คชื่อเข้าร่วมกิจกรรม '${currentSelectedActivity.name}'</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tableBody.innerHTML = list.map(item => {
+                const formattedDate = new Date(item.checked_in_at).toLocaleString('th-TH');
+                return `
+                    <tr>
+                        <td>${formattedDate}</td>
+                        <td style="font-weight: 700;">${item.student_id}</td>
+                        <td>${item.student_name}</td>
+                        <td>${item.student_class} (ปี ${item.academic_year})</td>
+                        <td>
+                            <span class="badge" style="background: rgba(249, 115, 22, 0.1); color: var(--accent); border: 1px solid rgba(249, 115, 22, 0.2); border-radius: 12px; font-weight: 600; padding: 0.2rem 0.6rem; font-size: 0.8rem;">
+                                ${item.checked_in_by_name || 'ระบบอัตโนมัติ'}
+                            </span>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        } else {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-muted" style="padding: 2rem; color: #ef4444;">ล้มเหลวในการโหลดรายชื่อ: ${result.message}</td>
+                </tr>
+            `;
+        }
+    } catch (e) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center text-muted" style="padding: 2rem; color: #ef4444;">เกิดข้อผิดพลาดในการโหลดข้อมูล</td>
+            </tr>
+        `;
+        console.error(e);
+    }
 }

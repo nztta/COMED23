@@ -274,8 +274,8 @@ if ($method === 'GET') {
             }
             sendSuccess($student);
         } else {
-            // List all active students
-            $stmt = $db->prepare("SELECT * FROM students WHERE is_deleted = false ORDER BY student_id ASC");
+            // List all active students (optimized columns selection to speed up loading)
+            $stmt = $db->prepare("SELECT id, student_id, prefix, full_name, nickname, class, academic_year, status FROM students WHERE is_deleted = false ORDER BY student_id ASC");
             $stmt->execute();
             $students = $stmt->fetchAll();
             sendSuccess($students);

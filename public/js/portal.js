@@ -127,7 +127,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Load Student Payment Ledger
     if (monthsTabContainer) {
-        await loadStudentLedger();
+        loadStudentLedger();
     }
 
     // Initialize PR Dashboard
@@ -1432,11 +1432,7 @@ function showAnnouncementModal(announcement) {
     tagEl.textContent = announcement.category;
     tagEl.className = `announcement-tag ${categoryTags[announcement.category] || 'tag-study'}`;
 
-    if (announcement.is_cancelled) {
-        bodyEl.innerHTML = `<div class="badge badge-red" style="margin-bottom:1rem; display:inline-block;">รายการเรียกเก็บเงินสำหรับประกาศฉบับนี้ถูกยกเลิกแล้ว</div>\n\n${announcement.content}`;
-    } else {
-        bodyEl.textContent = announcement.content;
-    }
+    bodyEl.textContent = announcement.content;
 
     modal.classList.add('active');
 
@@ -1454,27 +1450,35 @@ function showAnnouncementModal(announcement) {
 function initTabs() {
     const tabPR = document.getElementById('tab-pr');
     const tabPayment = document.getElementById('tab-payment');
+    const tabActivity = document.getElementById('tab-activity');
     const viewPaymentDetailsBtn = document.getElementById('view-payment-details-btn');
 
     const prSection = document.getElementById('pr-dashboard-section');
     const paymentSection = document.getElementById('payment-dashboard-section');
+    const activitySection = document.getElementById('activity-dashboard-section');
 
     const switchTab = (tabName) => {
+        // Reset active classes
+        [tabPR, tabPayment, tabActivity].forEach(btn => { if (btn) btn.classList.remove('active'); });
+        // Hide all sections
+        [prSection, paymentSection, activitySection].forEach(sec => { if (sec) sec.classList.add('hidden'); });
+
         if (tabName === 'pr') {
             if (tabPR) tabPR.classList.add('active');
-            if (tabPayment) tabPayment.classList.remove('active');
             if (prSection) prSection.classList.remove('hidden');
-            if (paymentSection) paymentSection.classList.add('hidden');
         } else if (tabName === 'payment') {
             if (tabPayment) tabPayment.classList.add('active');
-            if (tabPR) tabPR.classList.remove('active');
             if (paymentSection) paymentSection.classList.remove('hidden');
-            if (prSection) prSection.classList.add('hidden');
+        } else if (tabName === 'activity') {
+            if (tabActivity) tabActivity.classList.add('active');
+            if (activitySection) activitySection.classList.remove('hidden');
+            loadStudentActivityData();
         }
     };
 
     if (tabPR) tabPR.addEventListener('click', () => switchTab('pr'));
     if (tabPayment) tabPayment.addEventListener('click', () => switchTab('payment'));
+    if (tabActivity) tabActivity.addEventListener('click', () => switchTab('activity'));
     if (viewPaymentDetailsBtn) viewPaymentDetailsBtn.addEventListener('click', () => switchTab('payment'));
 }
 
@@ -1664,4 +1668,76 @@ function initLedgerFilters() {
             loadClassroomLedger();
         }, 300);
     });
+}
+
+async function loadStudentActivityData() {
+    if (!currentStudent) return;
+    
+    // Set student details
+    const qrName = document.getElementById('qrcode-student-name');
+    const qrId = document.getElementById('qrcode-student-id');
+    if (qrName) qrName.textContent = currentStudent.full_name + (currentStudent.nickname ? ` (${currentStudent.nickname})` : '');
+    if (qrId) qrId.textContent = 'รหัสประจำตัว: ' + currentStudent.student_id;
+    
+    // Load QR Code
+    const qrContainer = document.getElementById('student-qrcode-container');
+    if (qrContainer) {
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(currentStudent.student_id)}`;
+        qrContainer.innerHTML = `<img src="${qrUrl}" alt="Student QR Code" style="width: 250px; height: 250px; border-radius: 8px;">`;
+    }
+    
+    // Load Attendance History
+    const historyContainer = document.getElementById('student-activity-history-container');
+    const countBadge = document.getElementById('activity-count-badge');
+    if (!historyContainer) return;
+    
+    try {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/activities.php?action=my_attendance`);
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            const list = result.data || [];
+            if (countBadge) {
+                countBadge.textContent = `${list.length} กิจกรรม`;
+            }
+            
+            if (list.length === 0) {
+                historyContainer.innerHTML = `
+                    <div class="text-center text-muted" style="padding: 3rem 1rem;">
+                        <i class="fas fa-qrcode" style="font-size: 2.5rem; margin-bottom: 1rem; color: var(--text-secondary); opacity: 0.5;"></i>
+                        <p>ยังไม่มีประวัติการเข้าร่วมกิจกรรม</p>
+                        <p style="font-size: 0.85rem;">แสดง QR Code ให้เจ้าหน้าที่สแกนเพื่อเช็คชื่อเข้ากิจกรรม</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            historyContainer.innerHTML = list.map(item => {
+                const formattedDate = new Date(item.checked_in_at).toLocaleString('th-TH', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                return `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: rgba(255,255,255,0.03); border: 1px solid var(--border-glass); border-radius: var(--border-radius-sm); margin-bottom: 0.75rem;">
+                        <div>
+                            <h4 style="margin: 0; font-family: var(--font-heading); color: var(--text-primary); font-size: 1rem; font-weight: 700;">${item.activity_name}</h4>
+                            <span style="font-size: 0.8rem; color: var(--text-secondary);"><i class="far fa-clock" style="margin-right: 0.25rem;"></i>${formattedDate}</span>
+                        </div>
+                        <span class="badge" style="background: rgba(34, 197, 94, 0.1); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.2); font-size: 0.8rem; padding: 0.3rem 0.6rem; border-radius: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 0.25rem;">
+                            <i class="fas fa-check-circle" style="font-size: 0.85rem;"></i> เช็คชื่อแล้ว
+                        </span>
+                    </div>
+                `;
+            }).join('');
+            
+        } else {
+            historyContainer.innerHTML = `<div class="text-center text-muted" style="padding: 3rem 1rem;">โหลดข้อมูลล้มเหลว: ${result.message}</div>`;
+        }
+    } catch (e) {
+        historyContainer.innerHTML = '<div class="text-center text-muted" style="padding: 3rem 1rem;">เกิดข้อผิดพลาดในการโหลดประวัติกิจกรรม</div>';
+        console.error(e);
+    }
 }

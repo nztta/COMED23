@@ -390,11 +390,10 @@ if ($method === 'DELETE') {
         $deleteRecordsStmt = $db->prepare("UPDATE weekly_payment_records SET is_deleted = true, updated_by = :updated_by WHERE month_setting_id = :id");
         $deleteRecordsStmt->execute(['id' => $id, 'updated_by' => $user['id']]);
 
-        // Find notification created for this month setting and cancel it
+        // Find notification created for this month setting and soft delete it
         $updateNotif = $db->prepare("
             UPDATE notifications 
-            SET title = 'รายการนี้ถูกยกเลิกแล้ว', 
-                message = 'รายการเรียกเก็บเงินนี้ถูกยกเลิกการชำระเงินแล้วเพื่อป้องกันการโอนเงินผิดพลาด', 
+            SET is_deleted = true,
                 is_cancelled = true 
             WHERE setting_id = :setting_id
         ");
@@ -402,17 +401,6 @@ if ($method === 'DELETE') {
 
         $thMonthNames = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
         $monthText = $thMonthNames[$setting['month'] - 1] . ' ' . $setting['year'];
-
-        // Create a new cancellation notification
-        $newNotif = $db->prepare("
-            INSERT INTO notifications (title, message, type, is_cancelled, setting_id, created_by)
-            VALUES ('รายการเรียกเก็บเงินถูกยกเลิกแล้ว', :msg, 'BudgetChange', true, :setting_id, :created_by)
-        ");
-        $newNotif->execute([
-            'msg' => "รายการเรียกเก็บเงินรอบบิล {$monthText} ถูกยกเลิกโดยผู้ดูแลระบบแล้ว",
-            'setting_id' => $id,
-            'created_by' => $user['id']
-        ]);
 
         // Send Discord Webhook
         require_once __DIR__ . '/helpers/discord.php';

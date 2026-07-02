@@ -7,6 +7,7 @@ require_once __DIR__ . '/helpers/audit.php';
 require_once __DIR__ . '/helpers/discord.php';
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/config/supabase.php';
+require_once __DIR__ . '/config/cloudinary.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -44,37 +45,44 @@ function handleFileUpload(array $file, PDO $db): string {
         sendError("File type not allowed. Allowed types: " . implode(', ', $allowedMimeTypes));
     }
 
-    // Try Supabase Storage first if configured
-    $supabase = getSupabaseConfig();
-    if (!empty($supabase['url']) && !empty($supabase['anon_key'])) {
-        $fileName = uuid_generate_php() . '_' . basename($file['name']);
-        $bucket = $supabase['storage_bucket'];
-        $uploadUrl = "{$supabase['url']}/storage/v1/object/{$bucket}/{$fileName}";
+    // Try Cloudinary first if configured
+    $cloudinary = getCloudinaryConfig();
+    if (!empty($cloudinary['cloud_name']) && !empty($cloudinary['api_key']) && !empty($cloudinary['api_secret'])) {
+        $timestamp = time();
+        $paramsToSign = "timestamp=" . $timestamp;
+        $signature = sha1($paramsToSign . $cloudinary['api_secret']);
+        $uploadUrl = "https://api.cloudinary.com/v1_1/{$cloudinary['cloud_name']}/image/upload";
 
-        $fileData = file_get_contents($file['tmp_name']);
-        
+        $postFields = [
+            'file' => new CURLFile($file['tmp_name'], $detectedMimeType, $file['name']),
+            'timestamp' => $timestamp,
+            'api_key' => $cloudinary['api_key'],
+            'signature' => $signature
+        ];
+
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $uploadUrl);
         curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, $fileData);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $postFields);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            "Authorization: Bearer {$supabase['anon_key']}",
-            "Content-Type: {$detectedMimeType}"
-        ]);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
         if ($httpCode === 200 || $httpCode === 201) {
-            // Return public URL of the uploaded object
-            return "{$supabase['url']}/storage/v1/object/public/{$bucket}/{$fileName}";
+            $resData = json_decode($response, true);
+            if (isset($resData['secure_url'])) {
+                return $resData['secure_url'];
+            }
+        } else {
+            error_log("Cloudinary Upload Failed: Code " . $httpCode . ", Response: " . $response);
         }
     }
 
     // Fallback: Save file locally in public/uploads/
-    $uploadDir = __DIR__ . '/../public/uploads/';
+    $uploadDir = __DIR__ . '/../uploads/';
     if (!file_exists($uploadDir)) {
         mkdir($uploadDir, 0755, true);
     }
@@ -430,7 +438,7 @@ if ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'submit'
         // 9. Add notification for Finance
         $notifStmt = $db->prepare("
             INSERT INTO notifications (title, message, type)
-            VALUES ('New Slip Submitted', 'A new payment slip has been submitted and is pending verification.', 'Submission')
+            VALUES ('ส่งสลิปไปแล้ว', '$studentName ได้ส่งสลิปไปแล้ว รอการตรวจสอบ', 'Submission')
         ");
         $notifStmt->execute();
 

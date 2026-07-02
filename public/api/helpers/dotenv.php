@@ -5,7 +5,7 @@
  * Simple, zero-dependency .env loader for PHP
  */
 function loadDotEnv() {
-    $envPath = __DIR__ . '/../../.env';
+    $envPath = __DIR__ . '/../../../.env';
     if (!file_exists($envPath)) {
         return;
     }

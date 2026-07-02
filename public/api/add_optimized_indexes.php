@@ -1,0 +1,2 @@
+<?php
+// Optimized indexer cleanup

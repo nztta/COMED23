@@ -41,6 +41,8 @@ if ($method === 'GET') {
                 $stmt = $db->prepare("
                     SELECT * FROM notifications 
                     WHERE is_deleted = false 
+                      AND is_cancelled = false
+                      AND type IN ('BudgetChange', 'Approval', 'Rejection')
                       AND (student_id = :student_id OR (student_id IS NULL AND user_id IS NULL))
                     ORDER BY created_at DESC 
                     LIMIT 50
@@ -51,6 +53,7 @@ if ($method === 'GET') {
                 $stmt = $db->prepare("
                     SELECT * FROM notifications 
                     WHERE is_deleted = false 
+                      AND is_cancelled = false
                       AND student_id IS NULL AND user_id IS NULL
                     ORDER BY created_at DESC 
                     LIMIT 50
@@ -61,6 +64,7 @@ if ($method === 'GET') {
                 $stmt = $db->prepare("
                     SELECT * FROM notifications 
                     WHERE is_deleted = false 
+                      AND is_cancelled = false
                       AND (user_id = :user_id OR (student_id IS NULL AND user_id IS NULL))
                     ORDER BY created_at DESC 
                     LIMIT 50
@@ -75,6 +79,8 @@ if ($method === 'GET') {
                 $stmt = $db->prepare("
                     SELECT COUNT(*) FROM notifications 
                     WHERE is_deleted = false AND is_read = false
+                      AND is_cancelled = false
+                      AND type IN ('BudgetChange', 'Approval', 'Rejection')
                       AND (student_id = :student_id OR (student_id IS NULL AND user_id IS NULL))
                 ");
                 $stmt->execute(['student_id' => $studentId]);
@@ -82,6 +88,7 @@ if ($method === 'GET') {
                 $stmt = $db->prepare("
                     SELECT COUNT(*) FROM notifications 
                     WHERE is_deleted = false AND is_read = false
+                      AND is_cancelled = false
                       AND student_id IS NULL AND user_id IS NULL
                 ");
                 $stmt->execute();
@@ -89,6 +96,7 @@ if ($method === 'GET') {
                 $stmt = $db->prepare("
                     SELECT COUNT(*) FROM notifications 
                     WHERE is_deleted = false AND is_read = false
+                      AND is_cancelled = false
                       AND (user_id = :user_id OR (student_id IS NULL AND user_id IS NULL))
                 ");
                 $stmt->execute(['user_id' => $userId]);

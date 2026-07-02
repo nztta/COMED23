@@ -30,6 +30,7 @@
 
     <link rel="stylesheet" href="css/variables.css">
     <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
         /* Specific Dashboard Layout Styles */
@@ -42,6 +43,21 @@
             grid-template-columns: 1fr 1fr;
             gap: 1.5rem;
             margin-bottom: 2rem;
+        }
+
+        .activities-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+            align-items: start;
+            width: 100%;
+        }
+
+        @media (max-width: 992px) {
+            .activities-grid {
+                grid-template-columns: 1fr;
+            }
         }
 
         @media (max-width: 768px) {
@@ -212,6 +228,8 @@
     </div>
 
     <div class="layout-container">
+        <!-- Sidebar Drawer Overlay for Mobile -->
+        <div id="sidebar-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 999; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);"></div>
 
         <!-- Sidebar Navigation -->
         <aside class="sidebar" style="background-color: var(--bg-glass); backdrop-filter: blur(10px);">
@@ -296,6 +314,22 @@
                         <span>ประวัติการทำรายการ</span>
                     </a>
                 </li>
+                <li class="menu-item" data-tab="activities">
+                    <a href="#" style="font-family: var(--font-heading);">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                            class="sidebar-icon">
+                            <rect width="5" height="5" x="3" y="3" rx="1" />
+                            <rect width="5" height="5" x="16" y="3" rx="1" />
+                            <rect width="5" height="5" x="3" y="16" rx="1" />
+                            <path d="M21 16h-5a2 2 0 0 0-2 2v3" />
+                            <path d="M21 21v-2a2 2 0 0 0-2-2h-3" />
+                            <path d="M10 21v-4a2 2 0 0 1 2-2h4" />
+                            <path d="M12 3v10a2 2 0 0 0 2 2h3" />
+                        </svg>
+                        <span>เช็คชื่อกิจกรรม</span>
+                    </a>
+                </li>
             </ul>
 
             <div class="sidebar-footer">
@@ -325,6 +359,9 @@
 
             <!-- Global Content Header -->
             <header class="content-header">
+                <button id="admin-hamburger-btn" class="theme-toggle-btn" style="display: none; margin-right: 1rem; align-items: center; justify-content: center;" aria-label="Open Sidebar Menu">
+                    <i class="fas fa-bars"></i>
+                </button>
                 <div class="header-title-section">
                     <h1 id="view-panel-title" style="font-family: var(--font-heading);">แผงควบคุมระบบการเงิน</h1>
                     <p id="view-panel-subtitle">ภาพรวมสถิติการจัดเก็บเงินค่าบำรุงและประวัตินักศึกษา</p>
@@ -615,8 +652,155 @@
 
             </section>
 
+            <!-- -----------------------------------------------------------------
+                 TAB 7: ACTIVITY ATTENDANCE QR SCANNER & MANAGEMENT
+                 ----------------------------------------------------------------- -->
+            <section id="activities-panel" class="view-panel hidden">
+                
+                <!-- Grid layout: Left is Activity List/Create, Right is Scanner (if selected) -->
+                <div class="activities-grid">
+                    
+                    <!-- Left: Activities Management List -->
+                    <div class="card" style="background: var(--bg-glass); padding: 1.5rem; height: 100%;">
+                        <div class="card-header-flex">
+                            <h2 style="font-family: var(--font-heading); margin: 0; font-size: 1.3rem;">การจัดการกิจกรรมทั้งหมด</h2>
+                            <button class="btn btn-primary" onclick="openModal('activity-create-modal')" style="font-family: var(--font-heading); padding: 0.5rem 1rem; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.25rem;">
+                                <i class="fas fa-plus"></i> เพิ่มกิจกรรมใหม่
+                            </button>
+                        </div>
+                        
+                        <div class="table-wrapper" style="max-height: 450px; overflow-y: auto; overflow-x: auto; width: 100%;">
+                            <table>
+                                <thead>
+                                    <tr style="font-family: var(--font-heading); font-size: 0.9rem;">
+                                        <th>ชื่อกิจกรรม</th>
+                                        <th>สถานะเช็คชื่อ</th>
+                                        <th>ช่วงเวลาเก็บข้อมูล</th>
+                                        <th>ยอดสแกน</th>
+                                        <th>การจัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="activities-list-body">
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted" style="padding: 2rem;">กำลังโหลดรายการกิจกรรม...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Right: Camera Scanner Widget -->
+                    <div class="card" id="scanner-widget-card" style="background: var(--bg-glass); padding: 1.5rem;">
+                        <h2 style="font-family: var(--font-heading); margin-bottom: 0.5rem; font-size: 1.3rem;">เครื่องสแกนเช็คชื่อกิจกรรม</h2>
+                        
+                        <!-- Selected Activity Bar -->
+                        <div id="selected-activity-bar" style="background: rgba(249, 115, 22, 0.08); border: 1px dashed var(--accent); border-radius: var(--border-radius-sm); padding: 1rem; margin-bottom: 1.5rem; text-align: center;">
+                            <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">สถานะ: <span style="font-weight: bold; color: var(--accent);">ยังไม่ได้เลือกกิจกรรม</span></p>
+                            <p style="margin: 0.25rem 0 0 0; font-size: 0.8rem; color: var(--text-muted);">กรุณากดปุ่ม <b>"เลือกเช็คชื่อ"</b> ในรายการกิจกรรมเพื่อเปิดกล้อง</p>
+                        </div>
+
+                        <!-- Scanner Actions (Hidden by default until activity selected) -->
+                        <div id="scanner-actions-area" style="display: none;">
+                            <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1.5rem;">
+                                <button id="toggle-scanner-btn" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 0.5rem; font-family: var(--font-heading); width: 100%; justify-content: center;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                                    เปิดกล้องสแกน QR Code
+                                </button>
+                            </div>
+                            
+                            <p id="scanner-status-text" class="text-center text-muted" style="font-size: 0.9rem; margin-bottom: 1rem;">กล้องปิดอยู่</p>
+
+                            <!-- Scanner Window -->
+                            <div id="qr-reader-container" style="display: none; width: 100%; border: 1px solid var(--border-glass); border-radius: var(--border-radius-md); overflow: hidden; margin-bottom: 1.5rem;">
+                                <div id="qr-reader" style="width: 100%;"></div>
+                            </div>
+
+                            <!-- Scan Result Feedback Alert -->
+                            <div id="scan-feedback" class="card" style="display: none; padding: 1rem; margin-bottom: 0; border-left: 4px solid var(--accent); background: var(--bg-glass);">
+                                <div style="display: flex; align-items: center; gap: 1rem;">
+                                    <div id="scan-feedback-icon" style="font-size: 1.5rem;"></div>
+                                    <div style="flex: 1; min-width: 0;">
+                                        <h4 id="scan-feedback-title" style="margin: 0; font-family: var(--font-heading);">เช็คชื่อสำเร็จ</h4>
+                                        <p id="scan-feedback-msg" style="margin: 0.25rem 0 0 0; font-size: 0.85rem; color: var(--text-secondary); word-wrap: break-word;"></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Checked-in Students Table -->
+                <div class="card table-card" id="attendance-list-card" style="display: none;">
+                    <div class="table-header-section" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h2 id="attendance-table-title" style="font-family: var(--font-heading); margin: 0;">รายชื่อผู้เช็คชื่อกิจกรรม</h2>
+                        <button id="refresh-attendance-btn" class="btn btn-secondary" style="font-size: 0.85rem; padding: 0.5rem 1rem;">
+                            ดึงข้อมูลใหม่
+                        </button>
+                    </div>
+
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr style="font-family: var(--font-heading);">
+                                    <th>วัน-เวลาเช็คชื่อ</th>
+                                    <th>รหัสนักศึกษา</th>
+                                    <th>ชื่อ-นามสกุล</th>
+                                    <th>ชั้นปี/ห้อง</th>
+                                    <th>ผู้เช็คชื่อ (เจ้าหน้าที่)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="attendance-table-body">
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted" style="padding: 2rem;">ไม่มีผู้เข้าร่วมกิจกรรมในขณะนี้</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
         </main>
 
+    </div>
+
+    <!-- MODAL: Activity Creator Dialogue -->
+    <div id="activity-create-modal" class="modal-backdrop">
+        <div class="modal-content" style="background-color: var(--bg-glass); backdrop-filter: blur(20px); max-width: 500px; width: 100%;">
+            <div class="modal-header">
+                <h2 style="font-family: var(--font-heading);">สร้างกิจกรรมใหม่</h2>
+                <button class="modal-close-btn" onclick="closeModal('activity-create-modal')">&times;</button>
+            </div>
+            <form id="activity-create-form" onsubmit="event.preventDefault(); handleCreateActivitySubmit();">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="activity-name">ชื่อกิจกรรม</label>
+                        <input type="text" id="activity-name" class="form-control" placeholder="เช่น ปฐมนิเทศ คณะวิศวกรรมศาสตร์" required>
+                    </div>
+                    
+                    <div class="form-group" style="margin-top: 1.25rem;">
+                        <label for="activity-start-time">วันเวลาเริ่มเช็คชื่อ (ไม่ใส่ได้)</label>
+                        <input type="datetime-local" id="activity-start-time" class="form-control">
+                    </div>
+
+                    <div class="form-group" style="margin-top: 1.25rem;">
+                        <label for="activity-end-time">วันเวลาสิ้นสุดเช็คชื่อ (ไม่ใส่ได้)</label>
+                        <input type="datetime-local" id="activity-end-time" class="form-control">
+                    </div>
+
+                    <div class="form-group" style="margin-top: 1.25rem;">
+                        <label for="activity-status">สถานะเริ่มต้น</label>
+                        <select id="activity-status" class="form-control">
+                            <option value="Open">เปิดเช็คชื่อทันที (Open)</option>
+                            <option value="Closed">ปิดเช็คชื่อไว้ก่อน (Closed)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem; border-top: 1px solid var(--border-glass); padding-top: 1rem;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('activity-create-modal')">ยกเลิก</button>
+                    <button type="submit" class="btn btn-primary">บันทึกกิจกรรม</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <!-- MODAL: Student Creator/Editor Dialogue -->
@@ -756,7 +940,7 @@
                         </div>
                         <div class="form-group" style="display: none !important;">
                             <label for="setting-close">วันที่ปิดระบบรับชำระ</label>
-                            <input type="date" id="setting-close" class="form-control" value="ไม่มี" required>
+                            <input type="date" id="setting-close" class="form-control" value="" required>
                         </div>
                     </div>
 
@@ -888,6 +1072,8 @@
     <!-- Client config & helpers -->
     <script src="js/config.js"></script>
     <script src="js/auth.js"></script>
+    <!-- html5-qrcode library -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <!-- Dashboard Controller -->
     <script src="js/dashboard.js" defer></script>
 </body>
