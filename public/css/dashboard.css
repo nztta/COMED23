@@ -541,16 +541,20 @@ tr:hover td {
 .form-group label {
     font-size: 0.85rem;
     font-weight: 600;
-    color: var(--text-secondary);
+    color: var(--form-label-color);
 }
 
 .form-control {
     padding: 0.65rem 1rem;
-    border: 1px solid var(--border-glass);
-    background-color: var(--bg-primary);
-    color: var(--text-primary);
+    border: 1px solid var(--form-input-border-color);
+    background-color: var(--form-input-bg);
+    color: var(--form-input-text-color);
     border-radius: var(--border-radius-sm);
     font-family: var(--font-body);
+}
+
+.form-control[readonly] {
+    background-color: var(--form-input-bg) !important;
 }
 
 .form-control:focus {
@@ -565,7 +569,6 @@ tr:hover td {
     margin-top: 2rem;
 }
 
-/* Toast Notifications */
 .toast-container {
     position: fixed;
     bottom: 2rem;
@@ -573,7 +576,7 @@ tr:hover td {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-    z-index: 2000;
+    z-index: 25000;
 }
 
 .toast {
@@ -601,10 +604,25 @@ tr:hover td {
     border-left: 4px solid var(--status-red-text);
 }
 
+.toast-warning {
+    border-left: 4px solid var(--accent);
+}
+
+.toast.fade-out {
+    animation: fadeOut var(--transition-normal) forwards;
+}
+
 @keyframes slideIn {
     to {
         transform: translateY(0);
         opacity: 1;
+    }
+}
+
+@keyframes fadeOut {
+    to {
+        opacity: 0;
+        transform: translateY(-20px);
     }
 }
 
@@ -733,6 +751,420 @@ tr:hover td {
 
     /* Hide activity toggle and delete buttons in table on mobile to keep it simple */
     .toggle-act-btn, .delete-act-btn {
+        display: none !important;
+    }
+}
+
+/* Custom Date-Time Picker Component */
+.dtpicker-card {
+    background: #ffffff;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+    width: 100%;
+    max-width: 520px;
+    border: 1px solid var(--status-gray-border);
+    overflow: hidden;
+    font-family: var(--font-heading);
+    animation: dtpickerFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes dtpickerFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.dtpicker-body {
+    display: flex;
+    border-bottom: 1px solid var(--status-gray-border);
+}
+
+.dtpicker-calendar-pane {
+    flex: 1.25;
+    padding: 1.25rem;
+    border-right: 1px solid var(--status-gray-border);
+    box-sizing: border-box;
+}
+
+.dtpicker-time-pane {
+    flex: 0.75;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+}
+
+.dtpicker-cal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.dtpicker-cal-btn {
+    background: transparent;
+    border: 1px solid var(--status-gray-border);
+    border-radius: 8px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    transition: all 0.2s ease;
+    outline: none;
+}
+
+.dtpicker-cal-btn:hover {
+    background: var(--status-gray-bg);
+    color: var(--text-primary);
+    border-color: var(--text-muted);
+}
+
+#dtpicker-month-year {
+    font-weight: 700;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+}
+
+.dtpicker-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+}
+
+#dtpicker-days-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    row-gap: 6px;
+    column-gap: 4px;
+    text-align: center;
+}
+
+.dtpicker-day {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 32px;
+    width: 32px;
+    margin: auto;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    color: var(--text-primary);
+    transition: all 0.15s ease;
+    box-sizing: border-box;
+}
+
+.dtpicker-day:hover {
+    background-color: var(--status-gray-bg);
+}
+
+.dtpicker-day.other-month {
+    color: var(--text-muted);
+}
+
+.dtpicker-day.selected {
+    background-color: #6c5ce7 !important;
+    color: #ffffff !important;
+    font-weight: 700;
+}
+
+.dtpicker-day.today {
+    border: 1px solid #6c5ce7;
+}
+
+#dtpicker-time-list {
+    overflow-y: auto;
+    max-height: 270px;
+    padding: 0.75rem 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    box-sizing: border-box;
+}
+
+/* Custom Scrollbar for Time List */
+#dtpicker-time-list::-webkit-scrollbar {
+    width: 4px;
+}
+#dtpicker-time-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+#dtpicker-time-list::-webkit-scrollbar-thumb {
+    background: var(--status-gray-border);
+    border-radius: 4px;
+}
+#dtpicker-time-list::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
+.dtpicker-time-item {
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.15s ease;
+    box-sizing: border-box;
+}
+
+.dtpicker-time-item:hover {
+    background-color: var(--status-gray-bg);
+}
+
+.dtpicker-time-item.selected {
+    background-color: #f1edf9 !important;
+    color: #6c5ce7 !important;
+}
+
+.dtpicker-footer {
+    padding: 1rem 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #ffffff;
+    gap: 0.75rem;
+    box-sizing: border-box;
+}
+
+#dtpicker-cancel-btn {
+    background: #ffffff;
+    border: 1px solid var(--status-gray-border);
+    border-radius: 10px;
+    padding: 0.55rem 1.25rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.2s ease;
+}
+
+#dtpicker-cancel-btn:hover {
+    border-color: var(--text-muted);
+    background: var(--status-gray-bg);
+}
+
+#dtpicker-display-val {
+    border: 1px solid var(--status-gray-border);
+    border-radius: 10px;
+    padding: 0.55rem;
+    width: 140px;
+    text-align: center;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    outline: none;
+    background: var(--status-gray-bg);
+}
+
+#dtpicker-confirm-btn {
+    background: #6c5ce7;
+    border: none;
+    border-radius: 10px;
+    padding: 0.55rem 1.5rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #ffffff;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background-color 0.2s ease;
+}
+
+#dtpicker-confirm-btn:hover {
+    background: #5f27cd;
+}
+
+/* Custom Datetime Input styling in form */
+.custom-dt-input-wrapper {
+    position: relative;
+    cursor: pointer;
+}
+
+.custom-dt-input-wrapper input {
+    cursor: pointer;
+    background-color: var(--form-input-bg) !important;
+}
+
+.custom-dt-input-wrapper input:focus {
+    border-color: #6c5ce7 !important;
+    box-shadow: 0 0 0 2px rgba(108, 92, 231, 0.15) !important;
+}
+
+/* Dark Mode Overrides for Custom Picker */
+[data-theme="dark"] .dtpicker-card {
+    background: #111827;
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="dark"] .dtpicker-body {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="dark"] .dtpicker-calendar-pane {
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="dark"] .dtpicker-cal-btn {
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .dtpicker-cal-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="dark"] .dtpicker-day:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="dark"] .dtpicker-day.selected {
+    background-color: #6c5ce7 !important;
+    color: #ffffff !important;
+}
+
+[data-theme="dark"] .dtpicker-day.today {
+    border-color: #6c5ce7;
+}
+
+[data-theme="dark"] .dtpicker-time-item:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme="dark"] .dtpicker-time-item.selected {
+    background-color: rgba(108, 92, 231, 0.15) !important;
+    color: #a29bfe !important;
+}
+
+[data-theme="dark"] .dtpicker-footer {
+    background: #111827;
+}
+
+[data-theme="dark"] #dtpicker-cancel-btn {
+    background: #111827;
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] #dtpicker-cancel-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+[data-theme="dark"] #dtpicker-display-val {
+    background: #1f2937;
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Stacking for smaller mobile screens */
+@media (max-width: 480px) {
+    .dtpicker-body {
+        flex-direction: column;
+    }
+    .dtpicker-calendar-pane {
+        border-right: none;
+        border-bottom: 1px solid var(--status-gray-border);
+    }
+    [data-theme="dark"] .dtpicker-calendar-pane {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .dtpicker-time-pane {
+        max-height: 200px;
+    }
+    #dtpicker-time-list {
+        max-height: 180px;
+    }
+    .dtpicker-footer {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    #dtpicker-display-val {
+        width: 100%;
+    }
+    #dtpicker-cancel-btn, #dtpicker-confirm-btn {
+        width: 100%;
+        text-align: center;
+    }
+}
+
+/* Responsive Activities List Cards for Mobile Views */
+@media (max-width: 768px) {
+    #activities-panel table,
+    #activities-panel thead,
+    #activities-panel tbody,
+    #activities-panel th,
+    #activities-panel td,
+    #activities-panel tr {
+        display: block;
+    }
+
+    #activities-panel table thead {
+        display: none;
+    }
+
+    #activities-list-body tr {
+        background-color: var(--bg-secondary) !important;
+        border: 1px solid var(--form-input-border-color) !important;
+        border-radius: var(--border-radius-md) !important;
+        padding: 1.25rem !important;
+        margin-bottom: 1rem !important;
+        box-shadow: var(--shadow-glass) !important;
+    }
+
+    #activities-list-body td {
+        border: none !important;
+        padding: 0 !important;
+    }
+
+    /* Hide status, date range, scan count columns on mobile */
+    #activities-list-body td:nth-child(2),
+    #activities-list-body td:nth-child(3),
+    #activities-list-body td:nth-child(4) {
+        display: none !important;
+    }
+
+    /* Activity Name styling */
+    #activities-list-body td:nth-child(1) {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 0.75rem;
+        white-space: normal !important;
+        max-width: none !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+    }
+
+    /* Actions styling - only show Select Check-in button */
+    #activities-list-body td:nth-child(5) {
+        display: flex;
+        width: 100%;
+    }
+
+    #activities-list-body td:nth-child(5) .btn {
+        width: 100%;
+        text-align: center;
+        justify-content: center;
+        font-size: 0.9rem !important;
+        padding: 0.6rem 1rem !important;
+    }
+
+    #activities-list-body td:nth-child(5) .toggle-act-btn,
+    #activities-list-body td:nth-child(5) .delete-act-btn {
         display: none !important;
     }
 }

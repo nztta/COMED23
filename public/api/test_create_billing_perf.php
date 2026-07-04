@@ -1,0 +1,2 @@
+<?php
+// Performance test cleanup

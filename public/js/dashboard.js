@@ -28,6 +28,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 4. Initial Load
     const persistedTab = sessionStorage.getItem('admin_active_tab') || 'overview';
     await switchTab(persistedTab);
+
+    // 5. Initialize Custom Date-Time Picker
+    if (typeof CustomDateTimePicker !== 'undefined') {
+        CustomDateTimePicker.init();
+    }
+
+    // 6. Setup Change Password Form
+    setupChangePasswordForm();
 });
 
 function updateProfileUI() {
@@ -138,7 +146,7 @@ function setupTabNavigation() {
     if (logoutBtn) {
         logoutBtn.addEventListener('click', async (e) => {
             e.preventDefault();
-            const conf = confirm('คุณต้องการออกจากระบบการเงินผู้จัดการใช่หรือไม่?');
+            const conf = await showConfirm('ยืนยันการออกจากระบบ', 'คุณต้องการออกจากระบบการเงินผู้จัดการใช่หรือไม่?');
             if (conf) {
                 await signOut();
             }
@@ -220,6 +228,8 @@ async function switchTab(tabId) {
             break;
         case 'activities':
             initActivitiesScanner();
+            break;
+        case 'admin-settings':
             break;
     }
 }
@@ -646,20 +656,27 @@ if (studentForm) {
             if (result.status === 'success') {
                 studentModal.classList.remove('active');
                 await loadStudentsList();
+                showToast('บันทึกข้อมูลนักศึกษาสำเร็จ', 'success');
             } else {
-                alert(result.message);
+                showToast(result.message, 'error');
             }
         } catch (error) {
             console.error(error);
+            showToast('เกิดข้อผิดพลาดในการบันทึกข้อมูล', 'error');
         }
     });
 }
 
 async function deleteStudent(id) {
-    if (!confirm('คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลประวัตินักศึกษาคนนี้? การลบนี้จะเป็นการระงับและลบประวัติแบบถาวร')) {
+    const isConfirmed = await showConfirm(
+        'ยืนยันการลบประวัตินักศึกษา',
+        'คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลประวัตินักศึกษาคนนี้?\nการลบนี้จะเป็นการระงับและลบประวัติแบบถาวร'
+    );
+    if (!isConfirmed) {
         return;
     }
 
+    Loading.show('กำลังลบข้อมูลนักศึกษา...');
     try {
         const response = await fetch(`${CONFIG.API_BASE_URL}/students.php?id=${id}`, {
             method: 'DELETE',
@@ -669,11 +686,15 @@ async function deleteStudent(id) {
 
         if (result.status === 'success') {
             await loadStudentsList();
+            showToast('ลบข้อมูลนักศึกษาสำเร็จ', 'success');
         } else {
-            alert(result.message);
+            showToast(result.message, 'error');
         }
     } catch (e) {
         console.error(e);
+        showToast('เกิดข้อผิดพลาดในการลบข้อมูลนักศึกษา', 'error');
+    } finally {
+        Loading.hide();
     }
 }
 
@@ -766,8 +787,8 @@ function renderSettingsGrid(settings) {
 
 // Delete Monthly Setting
 async function deleteSetting(id) {
-    const isConfirmed = confirm(
-        "🚨 คำเตือนสำคัญ!\n" +
+    const isConfirmed = await showConfirm(
+        "🚨 คำเตือนสำคัญ!",
         "คุณยืนยันที่จะลบประกาศและเกณฑ์การเก็บเงินรอบบิลนี้ใช่หรือไม่?\n\n" +
         "การดำเนินการนี้จะ:\n" +
         "1. ลบ/ยกเลิกเกณฑ์ชำระเงินของรอบบิลนี้ออกจากการแสดงผลทั้งหมด\n" +
@@ -778,6 +799,7 @@ async function deleteSetting(id) {
 
     if (!isConfirmed) return;
 
+    Loading.show('กำลังลบประกาศและยกเลิกเกณฑ์การชำระเงิน...');
     try {
         const response = await fetch(`${CONFIG.API_BASE_URL}/settings.php?id=${id}`, {
             method: 'DELETE',
@@ -786,14 +808,16 @@ async function deleteSetting(id) {
         const result = await response.json();
 
         if (result.status === 'success') {
-            alert('ลบประกาศและยกเลิกเกณฑ์การชำระเงินเรียบร้อยแล้ว!');
-            await loadSettings(); // Reload settings list
+            showToast('ลบประกาศและยกเลิกเกณฑ์การชำระเงินเรียบร้อยแล้ว!', 'success');
+            await loadMonthSettings(); // Reload settings list
         } else {
-            alert('ไม่สามารถลบรายการได้: ' + result.message);
+            showToast('ไม่สามารถลบรายการได้: ' + result.message, 'error');
         }
     } catch (e) {
         console.error(e);
-        alert('เครือข่ายขัดข้อง ไม่สามารถติดต่อระบบจัดการเกณฑ์ได้');
+        showToast('เครือข่ายขัดข้อง ไม่สามารถติดต่อระบบจัดการเกณฑ์ได้', 'error');
+    } finally {
+        Loading.hide();
     }
 }
 
@@ -806,7 +830,7 @@ const dueDatesContainer = document.getElementById('due-dates-dynamic-fields');
 
 if (addSettingBtn) {
     addSettingBtn.addEventListener('click', () => {
-        document.getElementById('setting-modal-title').textContent = 'ตั้งเกณฑ์จัดเก็บเงินเดือนใหม่';
+        document.getElementById('setting-modal-title').textContent = 'สร้างรายการเก็บเงิน';
         settingForm.reset();
         document.getElementById('form-setting-id-field').value = '';
         document.getElementById('setting-targets-select').value = 'all';
@@ -895,7 +919,7 @@ function recalculateAutoDates() {
 
     // Set Close Date to a far future date (never closes)
     if (closeDateInput) {
-        closeDateInput.value = '-';
+        closeDateInput.value = '2099-12-31';
     }
 
     // Generate calculated due dates
@@ -953,7 +977,7 @@ function openEditSettingModal(id) {
     document.getElementById('setting-fee').value = setting.weekly_fee;
     document.getElementById('setting-weeks').value = setting.number_of_weeks;
     document.getElementById('setting-open').value = setting.open_date;
-    document.getElementById('setting-close').value = setting.close_date;
+    document.getElementById('setting-close').value = (setting.close_date && setting.close_date !== '-') ? setting.close_date : '2099-12-31';
     document.getElementById('setting-status-select').value = setting.status;
     document.getElementById('setting-title').value = setting.title || '';
     document.getElementById('setting-desc').value = setting.description || '';
@@ -1007,7 +1031,7 @@ if (settingForm) {
             weekly_fee: parseFloat(document.getElementById('setting-fee').value),
             number_of_weeks: parseInt(document.getElementById('setting-weeks').value),
             open_date: document.getElementById('setting-open').value,
-            close_date: document.getElementById('setting-close').value,
+            close_date: document.getElementById('setting-close').value || '2099-12-31',
             status: document.getElementById('setting-status-select').value,
             title: document.getElementById('setting-title').value.trim(),
             description: document.getElementById('setting-desc').value.trim(),
@@ -1015,6 +1039,7 @@ if (settingForm) {
             due_dates: dueDates
         };
 
+        Loading.show('กำลังบันทึกเกณฑ์การจัดเก็บเงิน...');
         try {
             const response = await fetch(`${CONFIG.API_BASE_URL}/settings.php`, {
                 method: 'POST',
@@ -1026,11 +1051,15 @@ if (settingForm) {
             if (result.status === 'success') {
                 settingModal.classList.remove('active');
                 await loadMonthSettings();
+                showToast('บันทึกเกณฑ์การจัดเก็บเงินเรียบร้อยแล้ว!', 'success');
             } else {
-                alert(result.message);
+                showToast(result.message, 'error');
             }
         } catch (error) {
             console.error(error);
+            showToast('เกิดข้อผิดพลาดในการบันทึกข้อมูล', 'error');
+        } finally {
+            Loading.hide();
         }
     });
 }
@@ -1254,7 +1283,7 @@ document.querySelectorAll('.decision-btn').forEach(btn => {
         if (!activeSubId) return;
 
         if (action === 'Reject' && comments === '') {
-            alert('จำเป็นต้องกรอกรายละเอียดคำชี้แจงเพื่ออธิบายการปฏิเสธอนุมัติสลิปนี้');
+            showToast('จำเป็นต้องกรอกรายละเอียดคำชี้แจงเพื่ออธิบายการปฏิเสธอนุมัติสลิปนี้', 'warning');
             return;
         }
 
@@ -1265,8 +1294,10 @@ document.querySelectorAll('.decision-btn').forEach(btn => {
             'RequestInfo': 'ส่งความเห็นแจ้งข้อมูลเพิ่มเติม'
         };
         const confirmText = `คุณยืนยันที่จะทำรายการ "${actionNames[action]}" สำหรับหลักฐานสลิปโอนเงินนี้ใช่หรือไม่?`;
-        if (!confirm(confirmText)) return;
+        const isConfirmed = await showConfirm('ยืนยันรายการสลิป', confirmText);
+        if (!isConfirmed) return;
 
+        Loading.show('กำลังบันทึกผลการตรวจสอบสลิป...');
         try {
             const response = await fetch(`${CONFIG.API_BASE_URL}/submissions.php`, {
                 method: 'POST',
@@ -1298,13 +1329,16 @@ document.querySelectorAll('.decision-btn').forEach(btn => {
                     openVerifyDialog(verificationQueue[safeIndex].id);
                 } else {
                     verifyModal.classList.remove('active');
-                    alert('ตรวจเอกสารคำขอที่ค้างทั้งหมดเรียบร้อยแล้ว!');
+                    showToast('ตรวจเอกสารคำขอที่ค้างทั้งหมดเรียบร้อยแล้ว!', 'success');
                 }
             } else {
-                alert(result.message);
+                showToast(result.message, 'error');
             }
         } catch (error) {
             console.error(error);
+            showToast('เกิดข้อผิดพลาดในการส่งข้อมูลตรวจสอบ', 'error');
+        } finally {
+            Loading.hide();
         }
     });
 });
@@ -1482,7 +1516,7 @@ function triggerReportExport(reportType) {
     const monthSettingId = document.getElementById('report-month-setting').value;
 
     if (reportType === 'monthly' && empty(monthSettingId)) {
-        alert('โปรดเลือกเดือนที่ต้องการจากรายการตัวเลือกก่อนส่งออกรายงานนี้');
+        showToast('โปรดเลือกเดือนที่ต้องการจากรายการตัวเลือกก่อนส่งออกรายงานนี้', 'warning');
         return;
     }
 
@@ -1531,13 +1565,55 @@ function triggerReportExport(reportType) {
             window.URL.revokeObjectURL(urlBlob);
         })
         .catch(e => {
-            alert('Error: ' + e.message);
+            showToast('Error: ' + e.message, 'error');
         });
 }
 
 // Global modal helpers
 window.openModal = function (modalId) {
-    document.getElementById(modalId).classList.add('active');
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.classList.add('active');
+        if (modalId === 'activity-create-modal') {
+            const startInput = document.getElementById('activity-start-time');
+            const endInput = document.getElementById('activity-end-time');
+
+            const now = new Date();
+            let startHours = now.getHours();
+            let startMinutes = Math.round(now.getMinutes() / 30) * 30;
+            if (startMinutes === 60) {
+                startHours += 1;
+                startMinutes = 0;
+            }
+            if (startHours >= 24) {
+                startHours = 23;
+                startMinutes = 30;
+            }
+
+            const startDateObj = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startHours, startMinutes);
+            const startY = startDateObj.getFullYear();
+            const startM = String(startDateObj.getMonth() + 1).padStart(2, '0');
+            const startD = String(startDateObj.getDate()).padStart(2, '0');
+            const startHStr = String(startDateObj.getHours()).padStart(2, '0');
+            const startMinStr = String(startDateObj.getMinutes()).padStart(2, '0');
+
+            if (startInput) {
+                startInput.value = `${startY}-${startM}-${startD} ${startHStr}:${startMinStr}`;
+            }
+
+            if (endInput) {
+                // Default to +2 hours
+                const endDateObj = new Date(startDateObj.getTime() + (2 * 60 * 60 * 1000));
+                const endY = endDateObj.getFullYear();
+                const endM = String(endDateObj.getMonth() + 1).padStart(2, '0');
+                const endD = String(endDateObj.getDate()).padStart(2, '0');
+                const endHStr = String(endDateObj.getHours()).padStart(2, '0');
+                const endMinStr = String(endDateObj.getMinutes()).padStart(2, '0');
+
+                endInput.value = `${endY}-${endM}-${endD} ${endHStr}:${endMinStr}`;
+            }
+        }
+    }
 };
 window.closeModal = function (modalId) {
     document.getElementById(modalId).classList.remove('active');
@@ -1552,10 +1628,12 @@ function empty(val) {
 // -----------------------------------------------------------------------------
 let scannerRunning = false;
 let currentSelectedActivity = null;
+let scannerFacingMode = 'environment';
 
 function initActivitiesScanner() {
     const toggleBtn = document.getElementById('toggle-scanner-btn');
     const refreshBtn = document.getElementById('refresh-attendance-btn');
+    const flipBtn = document.getElementById('flip-scanner-btn');
 
     if (toggleBtn) {
         toggleBtn.replaceWith(toggleBtn.cloneNode(true));
@@ -1569,6 +1647,12 @@ function initActivitiesScanner() {
         newRefreshBtn.addEventListener('click', loadActivitiesAttendanceList);
     }
 
+    if (flipBtn) {
+        flipBtn.replaceWith(flipBtn.cloneNode(true));
+        const newFlipBtn = document.getElementById('flip-scanner-btn');
+        newFlipBtn.addEventListener('click', flipActivitiesScanner);
+    }
+
     // Reset state
     currentSelectedActivity = null;
     document.getElementById('selected-activity-bar').innerHTML = `
@@ -1580,6 +1664,18 @@ function initActivitiesScanner() {
 
     // Load lists
     loadActivitiesList();
+}
+
+function parseAsLocalDateTime(dateStr) {
+    if (!dateStr) return null;
+    let cleanStr = dateStr.replace(' ', 'T');
+    if (cleanStr.includes('+')) {
+        cleanStr = cleanStr.split('+')[0];
+    }
+    if (cleanStr.includes('Z')) {
+        cleanStr = cleanStr.split('Z')[0];
+    }
+    return new Date(cleanStr);
 }
 
 async function loadActivitiesList() {
@@ -1604,8 +1700,10 @@ async function loadActivitiesList() {
             }
 
             listBody.innerHTML = list.map(a => {
-                const startStr = a.check_in_start ? new Date(a.check_in_start).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : 'ไม่กำหนด';
-                const endStr = a.check_in_end ? new Date(a.check_in_end).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : 'ไม่กำหนด';
+                const parsedStart = parseAsLocalDateTime(a.check_in_start);
+                const parsedEnd = parseAsLocalDateTime(a.check_in_end);
+                const startStr = parsedStart ? parsedStart.toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : 'ไม่กำหนด';
+                const endStr = parsedEnd ? parsedEnd.toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }) : 'ไม่กำหนด';
 
                 const statusBadge = a.status === 'Open'
                     ? `<span class="badge" style="background: rgba(34, 197, 94, 0.1); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.2); border-radius: 12px; padding: 0.25rem 0.5rem; font-size: 0.8rem; font-weight: 600;">(Open)</span>`
@@ -1659,10 +1757,11 @@ async function handleCreateActivitySubmit() {
     const status = document.getElementById('activity-status').value;
 
     if (!name) {
-        alert('กรุณาระบุชื่อกิจกรรม');
+        showToast('กรุณาระบุชื่อกิจกรรม', 'warning');
         return;
     }
 
+    Loading.show('กำลังสร้างกิจกรรมใหม่...');
     try {
         const response = await fetch(`${CONFIG.API_BASE_URL}/activities.php?action=create_activity`, {
             method: 'POST',
@@ -1672,16 +1771,18 @@ async function handleCreateActivitySubmit() {
         const result = await response.json();
 
         if (result.status === 'success') {
-            alert('สร้างกิจกรรมสำเร็จ');
+            showToast('สร้างกิจกรรมสำเร็จ', 'success');
             closeModal('activity-create-modal');
             document.getElementById('activity-create-form').reset();
             loadActivitiesList();
         } else {
-            alert('ล้มเหลว: ' + result.message);
+            showToast('ล้มเหลว: ' + result.message, 'error');
         }
     } catch (e) {
-        alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+        showToast('เกิดข้อผิดพลาดในการบันทึกข้อมูล', 'error');
         console.error(e);
+    } finally {
+        Loading.hide();
     }
 }
 
@@ -1699,8 +1800,10 @@ async function selectActivityForCheckIn(id, nameEscaped, status, start, end) {
 
     let timeLimits = '';
     if (start || end) {
-        const startStr = start ? new Date(start).toLocaleString('th-TH') : 'ไม่จำกัด';
-        const endStr = end ? new Date(end).toLocaleString('th-TH') : 'ไม่จำกัด';
+        const parsedStart = start ? parseAsLocalDateTime(start) : null;
+        const parsedEnd = end ? parseAsLocalDateTime(end) : null;
+        const startStr = parsedStart ? parsedStart.toLocaleString('th-TH') : 'ไม่จำกัด';
+        const endStr = parsedEnd ? parsedEnd.toLocaleString('th-TH') : 'ไม่จำกัด';
         timeLimits = `<br><span style="font-size: 0.8rem; color: var(--text-muted);">ช่วงเวลาสแกน: ${startStr} - ${endStr}</span>`;
     }
 
@@ -1741,20 +1844,25 @@ async function toggleActivityStatus(activityId) {
                 await loadActivitiesList();
             }
         } else {
-            alert('ข้อผิดพลาด: ' + result.message);
+            showToast('ข้อผิดพลาด: ' + result.message, 'error');
         }
     } catch (e) {
-        alert('เกิดข้อผิดพลาดในการเปลี่ยนสถานะกิจกรรม');
+        showToast('เกิดข้อผิดพลาดในการเปลี่ยนสถานะกิจกรรม', 'error');
         console.error(e);
     }
 }
 
 async function deleteActivity(activityId, nameEscaped) {
     const name = decodeURIComponent(nameEscaped);
-    if (!confirm(`คุณต้องการลบกิจกรรม "${name}" และบันทึกการเช็คชื่อทั้งหมดหรือไม่?\n(การดำเนินการนี้ไม่สามารถย้อนกลับได้)`)) {
+    const isConfirmed = await showConfirm(
+        'ยืนยันการลบกิจกรรม',
+        `คุณต้องการลบกิจกรรม "${name}" และบันทึกการเช็คชื่อทั้งหมดหรือไม่?\n(การดำเนินการนี้ไม่สามารถย้อนกลับได้)`
+    );
+    if (!isConfirmed) {
         return;
     }
 
+    Loading.show('กำลังลบกิจกรรม...');
     try {
         const response = await fetch(`${CONFIG.API_BASE_URL}/activities.php?action=delete_activity`, {
             method: 'POST',
@@ -1764,18 +1872,20 @@ async function deleteActivity(activityId, nameEscaped) {
         const result = await response.json();
 
         if (result.status === 'success') {
-            alert('ลบกิจกรรมสำเร็จ');
+            showToast('ลบกิจกรรมสำเร็จ', 'success');
             if (currentSelectedActivity && currentSelectedActivity.id === activityId) {
                 initActivitiesScanner();
             } else {
                 await loadActivitiesList();
             }
         } else {
-            alert('ล้มเหลว: ' + result.message);
+            showToast('ล้มเหลว: ' + result.message, 'error');
         }
     } catch (e) {
-        alert('เกิดข้อผิดพลาดในการลบข้อมูล');
+        showToast('เกิดข้อผิดพลาดในการลบข้อมูล', 'error');
         console.error(e);
+    } finally {
+        Loading.hide();
     }
 }
 
@@ -1786,7 +1896,7 @@ window.deleteActivity = deleteActivity;
 
 function toggleActivitiesScanner() {
     if (!currentSelectedActivity) {
-        alert('กรุณาเลือกกิจกรรมก่อน');
+        showToast('กรุณาเลือกกิจกรรมก่อน', 'warning');
         return;
     }
 
@@ -1801,6 +1911,7 @@ function startActivitiesScanner() {
     const readerContainer = document.getElementById('qr-reader-container');
     const toggleBtn = document.getElementById('toggle-scanner-btn');
     const statusText = document.getElementById('scanner-status-text');
+    const flipBtn = document.getElementById('flip-scanner-btn');
 
     if (!toggleBtn || !statusText || !readerContainer) return;
 
@@ -1812,6 +1923,10 @@ function startActivitiesScanner() {
     toggleBtn.className = 'btn btn-secondary';
     statusText.textContent = 'กล้องกำลังสแกน...';
     scannerRunning = true;
+
+    if (flipBtn) {
+        flipBtn.style.display = 'inline-flex';
+    }
 
     html5QrcodeScanner = new Html5Qrcode("qr-reader");
 
@@ -1829,7 +1944,7 @@ function startActivitiesScanner() {
     const config = { fps: 10, qrbox: { width: 250, height: 250 } };
 
     html5QrcodeScanner.start(
-        { facingMode: "environment" },
+        { facingMode: scannerFacingMode },
         config,
         qrCodeSuccessCallback
     ).catch(err => {
@@ -1843,6 +1958,7 @@ function stopActivitiesScanner() {
     const readerContainer = document.getElementById('qr-reader-container');
     const toggleBtn = document.getElementById('toggle-scanner-btn');
     const statusText = document.getElementById('scanner-status-text');
+    const flipBtn = document.getElementById('flip-scanner-btn');
 
     if (html5QrcodeScanner) {
         html5QrcodeScanner.stop().then(() => {
@@ -1861,8 +1977,49 @@ function stopActivitiesScanner() {
         `;
         toggleBtn.className = 'btn btn-primary';
     }
+    if (flipBtn) {
+        flipBtn.style.display = 'none';
+    }
     if (statusText) statusText.textContent = 'กล้องปิดอยู่';
     scannerRunning = false;
+}
+
+async function flipActivitiesScanner() {
+    if (!html5QrcodeScanner || !scannerRunning) return;
+
+    scannerFacingMode = scannerFacingMode === 'environment' ? 'user' : 'environment';
+    Loading.show('กำลังสลับกล้อง...');
+
+    try {
+        await html5QrcodeScanner.stop();
+        html5QrcodeScanner = null;
+
+        html5QrcodeScanner = new Html5Qrcode("qr-reader");
+        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+        const qrCodeSuccessCallback = async (decodedText, decodedResult) => {
+            stopActivitiesScanner();
+            await handleActivityCheckIn(decodedText, currentSelectedActivity.id);
+
+            setTimeout(() => {
+                if (activeTab === 'activities' && !scannerRunning && currentSelectedActivity) {
+                    startActivitiesScanner();
+                }
+            }, 2500);
+        };
+
+        await html5QrcodeScanner.start(
+            { facingMode: scannerFacingMode },
+            config,
+            qrCodeSuccessCallback
+        );
+    } catch (err) {
+        console.error("Error switching camera: ", err);
+        showToast('ไม่สามารถเปิดใช้งานกล้องสลับได้', 'error');
+        stopActivitiesScanner();
+    } finally {
+        Loading.hide();
+    }
 }
 
 async function handleActivityCheckIn(studentId, activityId) {
@@ -1967,4 +2124,584 @@ async function loadActivitiesAttendanceList() {
         `;
         console.error(e);
     }
+}
+
+// -----------------------------------------------------------------------------
+// Custom Date-Time Picker Controller
+// -----------------------------------------------------------------------------
+const CustomDateTimePicker = {
+    activeInput: null,
+    selectedDate: null, // Date object (only date part)
+    selectedTime: "10:00 AM",
+    currentMonth: new Date().getMonth(),
+    currentYear: new Date().getFullYear(),
+
+    init() {
+        const startInput = document.getElementById('activity-start-time');
+        const endInput = document.getElementById('activity-end-time');
+
+        if (startInput) {
+            startInput.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.open(startInput);
+            });
+            const wrapper1 = startInput.closest('.custom-dt-input-wrapper');
+            if (wrapper1) {
+                wrapper1.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.open(startInput);
+                });
+            }
+        }
+        if (endInput) {
+            endInput.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.open(endInput);
+            });
+            const wrapper2 = endInput.closest('.custom-dt-input-wrapper');
+            if (wrapper2) {
+                wrapper2.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.open(endInput);
+                });
+            }
+        }
+
+        const cancelBtn = document.getElementById('dtpicker-cancel-btn');
+        const confirmBtn = document.getElementById('dtpicker-confirm-btn');
+        const prevMonthBtn = document.getElementById('dtpicker-prev-month-btn');
+        const nextMonthBtn = document.getElementById('dtpicker-next-month-btn');
+
+        if (cancelBtn) cancelBtn.addEventListener('click', () => this.close());
+        if (confirmBtn) confirmBtn.addEventListener('click', () => this.confirm());
+        if (prevMonthBtn) prevMonthBtn.addEventListener('click', () => this.changeMonth(-1));
+        if (nextMonthBtn) nextMonthBtn.addEventListener('click', () => this.changeMonth(1));
+
+        const modal = document.getElementById('custom-datetime-picker-modal');
+        if (modal) {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) this.close();
+            });
+        }
+    },
+
+    open(inputElement) {
+        this.activeInput = inputElement;
+
+        const val = inputElement.value; // expected: "YYYY-MM-DDTHH:mm"
+        let dateObj = new Date();
+        if (val) {
+            // Check if there's a 'T' in it, otherwise replace space with T
+            const formattedVal = val.includes('T') ? val : val.replace(' ', 'T');
+            const parsed = new Date(formattedVal);
+            if (!isNaN(parsed.getTime())) {
+                dateObj = parsed;
+            }
+        }
+
+        this.selectedDate = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+
+        let hours = dateObj.getHours();
+        let minutes = dateObj.getMinutes();
+        // round to nearest 30 mins
+        minutes = Math.round(minutes / 30) * 30;
+        if (minutes === 60) {
+            hours += 1;
+            minutes = 0;
+        }
+        if (hours >= 24) {
+            hours = 23;
+            minutes = 30;
+        }
+
+        this.selectedTime = this.formatTime12h(hours, minutes);
+        this.currentMonth = this.selectedDate.getMonth();
+        this.currentYear = this.selectedDate.getFullYear();
+
+        this.render();
+        const modal = document.getElementById('custom-datetime-picker-modal');
+        if (modal) {
+            modal.classList.add('active');
+        }
+    },
+
+    close() {
+        const modal = document.getElementById('custom-datetime-picker-modal');
+        if (modal) {
+            modal.classList.remove('active');
+        }
+        this.activeInput = null;
+    },
+
+    confirm() {
+        if (!this.activeInput) return;
+
+        const timeParts = this.parseTime12h(this.selectedTime);
+        const finalDate = new Date(
+            this.selectedDate.getFullYear(),
+            this.selectedDate.getMonth(),
+            this.selectedDate.getDate(),
+            timeParts.hours,
+            timeParts.minutes
+        );
+
+        const yyyy = finalDate.getFullYear();
+        const mm = String(finalDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(finalDate.getDate()).padStart(2, '0');
+        const hh = String(finalDate.getHours()).padStart(2, '0');
+        const min = String(finalDate.getMinutes()).padStart(2, '0');
+
+        // Write the standard format back
+        this.activeInput.value = `${yyyy}-${mm}-${dd} ${hh}:${min}`;
+        this.activeInput.dispatchEvent(new Event('change'));
+        this.close();
+    },
+
+    changeMonth(dir) {
+        this.currentMonth += dir;
+        if (this.currentMonth < 0) {
+            this.currentMonth = 11;
+            this.currentYear -= 1;
+        } else if (this.currentMonth > 11) {
+            this.currentMonth = 0;
+            this.currentYear += 1;
+        }
+        this.renderCalendar();
+    },
+
+    formatTime12h(hours, minutes) {
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        let h = hours % 12;
+        h = h ? h : 12;
+        const m = String(minutes).padStart(2, '0');
+        return `${h}:${m} ${ampm}`;
+    },
+
+    parseTime12h(timeStr) {
+        const parts = timeStr.split(' ');
+        const ampm = parts[1];
+        const timeParts = parts[0].split(':');
+        let hours = parseInt(timeParts[0]);
+        const minutes = parseInt(timeParts[1]);
+
+        if (ampm === 'PM' && hours < 12) hours += 12;
+        if (ampm === 'AM' && hours === 12) hours = 0;
+
+        return { hours, minutes };
+    },
+
+    getMonthName(monthIndex) {
+        const months = [
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        ];
+        return months[monthIndex];
+    },
+
+    getMonthNameShort(monthIndex) {
+        const months = [
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+        ];
+        return months[monthIndex];
+    },
+
+    render() {
+        this.renderCalendar();
+        this.renderTimeList();
+        this.updateDisplayValue();
+    },
+
+    updateDisplayValue() {
+        const displayInput = document.getElementById('dtpicker-display-val');
+        if (displayInput && this.selectedDate) {
+            const month = this.getMonthNameShort(this.selectedDate.getMonth());
+            const day = this.selectedDate.getDate();
+            const year = this.selectedDate.getFullYear();
+            displayInput.value = `${month} ${day}, ${year}`;
+        }
+    },
+
+    renderCalendar() {
+        const monthYearLabel = document.getElementById('dtpicker-month-year');
+        if (monthYearLabel) {
+            monthYearLabel.textContent = `${this.getMonthName(this.currentMonth)} ${this.currentYear}`;
+        }
+
+        const grid = document.getElementById('dtpicker-days-grid');
+        if (!grid) return;
+        grid.innerHTML = '';
+
+        const firstDayOfMonth = new Date(this.currentYear, this.currentMonth, 1);
+        let startDayIndex = firstDayOfMonth.getDay() - 1;
+        if (startDayIndex < 0) startDayIndex = 6; // Sunday is 6, Monday is 0
+
+        const totalDaysInMonth = new Date(this.currentYear, this.currentMonth + 1, 0).getDate();
+        const totalDaysInPrevMonth = new Date(this.currentYear, this.currentMonth, 0).getDate();
+
+        // Prev Month Days
+        for (let i = startDayIndex - 1; i >= 0; i--) {
+            const dayNum = totalDaysInPrevMonth - i;
+            const prevMonthIdx = this.currentMonth === 0 ? 11 : this.currentMonth - 1;
+            const prevYearVal = this.currentMonth === 0 ? this.currentYear - 1 : this.currentYear;
+
+            const dayEl = document.createElement('div');
+            dayEl.className = 'dtpicker-day other-month';
+            dayEl.textContent = dayNum;
+            dayEl.addEventListener('click', () => {
+                this.selectedDate = new Date(prevYearVal, prevMonthIdx, dayNum);
+                this.currentMonth = prevMonthIdx;
+                this.currentYear = prevYearVal;
+                this.render();
+            });
+            grid.appendChild(dayEl);
+        }
+
+        // Current Month Days
+        const today = new Date();
+        for (let dayNum = 1; dayNum <= totalDaysInMonth; dayNum++) {
+            const dayEl = document.createElement('div');
+            dayEl.className = 'dtpicker-day';
+            dayEl.textContent = dayNum;
+
+            const dateVal = new Date(this.currentYear, this.currentMonth, dayNum);
+
+            if (this.selectedDate &&
+                this.selectedDate.getDate() === dayNum &&
+                this.selectedDate.getMonth() === this.currentMonth &&
+                this.selectedDate.getFullYear() === this.currentYear) {
+                dayEl.classList.add('selected');
+            }
+
+            if (today.getDate() === dayNum &&
+                today.getMonth() === this.currentMonth &&
+                today.getFullYear() === this.currentYear) {
+                dayEl.classList.add('today');
+            }
+
+            dayEl.addEventListener('click', () => {
+                this.selectedDate = dateVal;
+                this.renderCalendar();
+                this.updateDisplayValue();
+            });
+            grid.appendChild(dayEl);
+        }
+
+        // Next Month Days
+        const totalCellsUsed = startDayIndex + totalDaysInMonth;
+        const totalCellsNeeded = 42;
+        const nextMonthDaysNeeded = totalCellsNeeded - totalCellsUsed;
+
+        const nextMonthIdx = this.currentMonth === 11 ? 0 : this.currentMonth + 1;
+        const nextYearVal = this.currentMonth === 11 ? this.currentYear + 1 : this.currentYear;
+
+        for (let dayNum = 1; dayNum <= nextMonthDaysNeeded; dayNum++) {
+            const dayEl = document.createElement('div');
+            dayEl.className = 'dtpicker-day other-month';
+            dayEl.textContent = dayNum;
+            dayEl.addEventListener('click', () => {
+                this.selectedDate = new Date(nextYearVal, nextMonthIdx, dayNum);
+                this.currentMonth = nextMonthIdx;
+                this.currentYear = nextYearVal;
+                this.render();
+            });
+            grid.appendChild(dayEl);
+        }
+    },
+
+    renderTimeList() {
+        const container = document.getElementById('dtpicker-time-list');
+        if (!container) return;
+        container.innerHTML = '';
+
+        const timeList = [];
+        for (let h = 0; h < 24; h++) {
+            timeList.push(this.formatTime12h(h, 0));
+            timeList.push(this.formatTime12h(h, 30));
+        }
+
+        let selectedItemEl = null;
+
+        timeList.forEach(timeStr => {
+            const item = document.createElement('div');
+            item.className = 'dtpicker-time-item';
+            item.textContent = timeStr;
+
+            if (timeStr === this.selectedTime) {
+                item.classList.add('selected');
+                selectedItemEl = item;
+            }
+
+            item.addEventListener('click', () => {
+                this.selectedTime = timeStr;
+                container.querySelectorAll('.dtpicker-time-item').forEach(el => el.classList.remove('selected'));
+                item.classList.add('selected');
+            });
+
+            container.appendChild(item);
+        });
+    }
+};
+
+/**
+ * Display a custom toast notification in the bottom right corner
+ * @param {string} message - Notification text
+ * @param {string} type - 'success', 'error', or 'warning'
+ */
+function showToast(message, type = 'success') {
+    let container = document.querySelector('.toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+
+    let iconClass = 'fa-circle-check';
+    let iconColor = 'var(--status-green-text)';
+    if (type === 'error') {
+        iconClass = 'fa-circle-xmark';
+        iconColor = 'var(--status-red-text)';
+    } else if (type === 'warning') {
+        iconClass = 'fa-circle-exclamation';
+        iconColor = 'var(--accent)';
+    }
+
+    toast.innerHTML = `
+        <i class="fa-solid ${iconClass}" style="color: ${iconColor}; font-size: 1.25rem;"></i>
+        <div style="font-size: 0.95rem; font-weight: 500; font-family: var(--font-body);">${message}</div>
+    `;
+
+    container.appendChild(toast);
+
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+        toast.classList.add('fade-out');
+        toast.addEventListener('animationend', () => {
+            toast.remove();
+            if (container.children.length === 0) {
+                container.remove();
+            }
+        });
+    }, 3000);
+}
+
+/**
+ * Display a custom confirmation modal returning a promise (true/false)
+ * @param {string} title - Title of the confirm dialog
+ * @param {string} message - Question/message details
+ * @returns {Promise<boolean>}
+ */
+function showConfirm(title, message) {
+    return new Promise((resolve) => {
+        const modalId = 'custom-confirm-modal';
+        let modalEl = document.getElementById(modalId);
+        if (modalEl) modalEl.remove();
+
+        modalEl = document.createElement('div');
+        modalEl.id = modalId;
+        modalEl.className = 'modal-backdrop';
+        modalEl.style.zIndex = '20000';
+
+        modalEl.innerHTML = `
+            <div class="modal-content" style="background-color: var(--modal-bg); max-width: 400px; width: 100%; box-shadow: var(--shadow-xl); border: 1px solid var(--border-glass);">
+                <div class="modal-header" style="border-bottom: none; padding-bottom: 0.5rem;">
+                    <h3 style="font-family: var(--font-heading); margin: 0; color: var(--text-primary); font-size: 1.2rem;">${title}</h3>
+                </div>
+                <div class="modal-body" style="padding-top: 0.5rem; padding-bottom: 1.5rem;">
+                    <p style="margin: 0; font-size: 0.95rem; color: var(--text-secondary); line-height: 1.5; white-space: pre-line;">${message}</p>
+                </div>
+                <div class="modal-footer" style="margin-top: 0; border-top: none; padding-top: 0; gap: 0.75rem; justify-content: flex-end; display: flex;">
+                    <button type="button" id="confirm-cancel-btn" class="btn btn-secondary" style="padding: 0.5rem 1rem;">ยกเลิก</button>
+                    <button type="button" id="confirm-ok-btn" class="btn btn-primary" style="padding: 0.5rem 1rem; background-color: var(--accent); color: white; border: none;">ตกลง</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modalEl);
+
+        // Force reflow and add active class for transition
+        modalEl.offsetHeight;
+        modalEl.classList.add('active');
+
+        const cancelBtn = modalEl.querySelector('#confirm-cancel-btn');
+        const okBtn = modalEl.querySelector('#confirm-ok-btn');
+
+        const cleanUp = (value) => {
+            modalEl.classList.remove('active');
+            setTimeout(() => {
+                modalEl.remove();
+            }, 300);
+            resolve(value);
+        };
+
+        cancelBtn.addEventListener('click', () => cleanUp(false));
+        okBtn.addEventListener('click', () => cleanUp(true));
+
+        // Clicking backdrop triggers cancel
+        modalEl.addEventListener('click', (e) => {
+            if (e.target === modalEl) {
+                cleanUp(false);
+            }
+        });
+    });
+}
+
+/**
+ * Global Loading Overlay Helper
+ */
+const Loading = {
+    show(message = 'กำลังโหลดข้อมูล...') {
+        let overlay = document.getElementById('global-loading-overlay');
+        if (overlay) overlay.remove();
+
+        overlay = document.createElement('div');
+        overlay.id = 'global-loading-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(9, 13, 22, 0.7);
+            backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 1.5rem;
+            z-index: 99999;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        `;
+
+        overlay.innerHTML = `
+            <div class="loading-spinner" style="
+                width: 50px;
+                height: 50px;
+                border: 4px solid rgba(255, 255, 255, 0.1);
+                border-top: 4px solid var(--accent, #f97316);
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+            "></div>
+            <div style="
+                color: #ffffff;
+                font-family: var(--font-body);
+                font-size: 1.1rem;
+                font-weight: 500;
+                letter-spacing: 0.5px;
+            ">${message}</div>
+        `;
+
+        // Add keyframes dynamically if not exists
+        if (!document.getElementById('loading-spin-style')) {
+            const style = document.createElement('style');
+            style.id = 'loading-spin-style';
+            style.textContent = `
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        document.body.appendChild(overlay);
+
+        // Force reflow and transition
+        overlay.offsetHeight;
+        overlay.style.opacity = '1';
+    },
+
+    hide() {
+        const overlay = document.getElementById('global-loading-overlay');
+        if (!overlay) return;
+
+        overlay.style.opacity = '0';
+        setTimeout(() => {
+            overlay.remove();
+        }, 200);
+    }
+};
+
+/**
+ * Setup Admin Change Password form listener and submission handler
+ */
+function setupChangePasswordForm() {
+    const form = document.getElementById('admin-change-password-form');
+    if (!form) return;
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const currentPassword = document.getElementById('admin-current-password').value;
+        const newPassword = document.getElementById('admin-new-password').value;
+        const confirmPassword = document.getElementById('admin-confirm-password').value;
+
+        if (newPassword !== confirmPassword) {
+            showToast('รหัสผ่านใหม่และรหัสผ่านยืนยันไม่ตรงกัน', 'warning');
+            return;
+        }
+
+        if (newPassword.length < 6) {
+            showToast('รหัสผ่านใหม่ต้องมีความยาวอย่างน้อย 6 ตัวอักษร', 'warning');
+            return;
+        }
+
+        const conf = await showConfirm(
+            'ยืนยันการเปลี่ยนรหัสผ่าน',
+            'คุณต้องการบันทึกการเปลี่ยนรหัสผ่านใหม่ของผู้ดูแลระบบนี้ใช่หรือไม่?'
+        );
+        if (!conf) return;
+
+        Loading.show('กำลังตรวจสอบสิทธิ์และเปลี่ยนรหัสผ่าน...');
+        try {
+            const client = getSupabaseClient();
+            if (!client) throw new Error('Supabase client not initialized');
+
+            // 1. Re-authenticate to verify current password
+            const email = currentUser.email;
+            const { error: signInError } = await client.auth.signInWithPassword({
+                email: email,
+                password: currentPassword
+            });
+
+            if (signInError) {
+                showToast('รหัสผ่านปัจจุบันไม่ถูกต้อง', 'error');
+                return;
+            }
+
+            // 2. Update user password in Supabase
+            const { error: updateError } = await client.auth.updateUser({
+                password: newPassword
+            });
+
+            if (updateError) {
+                showToast('ไม่สามารถเปลี่ยนรหัสผ่านได้: ' + updateError.message, 'error');
+                return;
+            }
+
+            // 3. Log to audit database via local PHP API
+            try {
+                await fetch(`${CONFIG.API_BASE_URL}/auth.php?action=log_password_change`, {
+                    method: 'POST',
+                    headers: getAuthHeaders()
+                });
+            } catch (auditError) {
+                console.error('Failed to log password change audit:', auditError);
+            }
+
+            // Success
+            showToast('เปลี่ยนรหัสผ่านใหม่เรียบร้อยแล้ว!', 'success');
+            form.reset();
+
+        } catch (error) {
+            console.error(error);
+            showToast('เกิดข้อผิดพลาดไม่คาดคิดในระบบ', 'error');
+        } finally {
+            Loading.hide();
+        }
+    });
 }

@@ -444,11 +444,13 @@
                         if (result.status === 'success') {
                             notifications.forEach(n => n.is_read = true);
                             renderInboxList();
+                            showToast('ทำเครื่องหมายอ่านทั้งหมดเรียบร้อยแล้ว', 'success');
                         } else {
-                            alert('ไม่สามารถอัปเดตสถานะได้: ' + result.message);
+                            showToast('ไม่สามารถอัปเดตสถานะได้: ' + result.message, 'error');
                         }
                     } catch (e) {
                         console.error(e);
+                        showToast('เกิดข้อผิดพลาดในการเชื่อมต่อระบบ', 'error');
                     }
                 });
             }
@@ -609,6 +611,46 @@
             } catch (e) {
                 console.error(e);
             }
+        }
+
+        function showToast(message, type = 'success') {
+            let container = document.querySelector('.toast-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.className = 'toast-container';
+                document.body.appendChild(container);
+            }
+
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+
+            let iconClass = 'fa-circle-check';
+            let iconColor = 'var(--status-green-text)';
+            if (type === 'error') {
+                iconClass = 'fa-circle-xmark';
+                iconColor = 'var(--status-red-text)';
+            } else if (type === 'warning') {
+                iconClass = 'fa-circle-exclamation';
+                iconColor = 'var(--accent)';
+            }
+
+            toast.innerHTML = `
+                <i class="fa-solid ${iconClass}" style="color: ${iconColor}; font-size: 1.25rem;"></i>
+                <div style="font-size: 0.95rem; font-weight: 500; font-family: var(--font-body);">${message}</div>
+            `;
+
+            container.appendChild(toast);
+
+            // Auto-remove after 3 seconds
+            setTimeout(() => {
+                toast.classList.add('fade-out');
+                toast.addEventListener('animationend', () => {
+                    toast.remove();
+                    if (container.children.length === 0) {
+                        container.remove();
+                    }
+                });
+            }, 3000);
         }
     </script>
 </body>

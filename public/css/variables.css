@@ -56,6 +56,13 @@
     --border-radius-md: 16px;
     --border-radius-lg: 24px;
     --logo-glow: rgba(245, 158, 11, 0.45);
+
+    /* Form control variables */
+    --form-label-color: #000000;
+    --form-input-text-color: #000000;
+    --form-input-border-color: #000000;
+    --form-input-bg: #ffffff;
+    --modal-bg: #ffffff;
 }
 
 /* Dark Theme Overrides */
@@ -76,6 +83,13 @@
     --accent-gradient: linear-gradient(135deg, #f97316 0%, #ea580c 50%, #ffedd5 100%);
     --accent-shadow: rgba(249, 115, 22, 0.35);
     --logo-glow: rgba(255, 69, 0, 0.55);
+
+    /* Form control variables (Dark overrides) */
+    --form-label-color: var(--text-secondary);
+    --form-input-text-color: var(--text-primary);
+    --form-input-border-color: var(--border-glass);
+    --form-input-bg: var(--bg-primary);
+    --modal-bg: var(--bg-glass);
 
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);

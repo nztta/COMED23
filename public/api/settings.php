@@ -267,51 +267,53 @@ if ($method === 'POST') {
                 $id = $insertStmt->fetchColumn();
             }
 
-            // Populate weekly records for targeted students
+            // Populate weekly records for targeted students in a single query
+            $studentIdsStr = implode(',', $targetStudents);
             $insertRecordStmt = $db->prepare("
                 INSERT INTO weekly_payment_records (
                     student_id, month_setting_id, week_number, status, amount, created_by, updated_by
-                ) VALUES (
-                    :student_id, :setting_id, :week_number, 'Unpaid', :amount, :created_by, :updated_by
-                ) ON CONFLICT (student_id, month_setting_id, week_number) DO NOTHING
+                )
+                SELECT s.id, :setting_id, w.week, 'Unpaid', :amount, :created_by, :updated_by
+                FROM students s
+                CROSS JOIN (SELECT generate_series(1, :num_weeks) AS week) w
+                WHERE s.id = ANY(string_to_array(:student_ids_str, ',')::UUID[]) AND s.is_deleted = false
+                ON CONFLICT (student_id, month_setting_id, week_number) DO NOTHING
             ");
-
-            foreach ($targetStudents as $studentId) {
-                for ($week = 1; $week <= $numberOfWeeks; $week++) {
-                    $insertRecordStmt->execute([
-                        'student_id' => $studentId,
-                        'setting_id' => $id,
-                        'week_number' => $week,
-                        'amount' => $weeklyFee,
-                        'created_by' => $user['id'],
-                        'updated_by' => $user['id']
-                    ]);
-                }
-            }
+            $insertRecordStmt->execute([
+                'setting_id' => $id,
+                'amount' => $weeklyFee,
+                'num_weeks' => $numberOfWeeks,
+                'student_ids_str' => $studentIdsStr,
+                'created_by' => $user['id'],
+                'updated_by' => $user['id']
+            ]);
 
             // Create notification (Global/Student specific depends on targets)
-            $notifStmt = $db->prepare("
-                INSERT INTO notifications (title, message, type, setting_id, student_id, author_name, target_page, created_by)
-                VALUES (:title, :message, 'BudgetChange', :setting_id, :student_id, :author, 'student.html', :created_by)
-            ");
-            
             $thMonthNames = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
             $monthText = $thMonthNames[$month - 1] . ' ' . $year;
 
             if (is_array($customMembers) && !empty($customMembers)) {
-                // Targeted notifications
-                foreach ($customMembers as $studentId) {
-                    $notifStmt->execute([
-                        'title' => "คุณมีรายการเรียกเก็บเงินใหม่: {$title}",
-                        'message' => "รายการเรียกเก็บเงินรอบบิลเดือน {$monthText} ค่าห้องสัปดาห์ละ {$weeklyFee} บาท จำนวน {$numberOfWeeks} สัปดาห์",
-                        'setting_id' => $id,
-                        'student_id' => $studentId,
-                        'author' => $user['full_name'],
-                        'created_by' => $user['id']
-                    ]);
-                }
+                // Targeted notifications in a single batch query
+                $notifStmt = $db->prepare("
+                    INSERT INTO notifications (title, message, type, setting_id, student_id, author_name, target_page, created_by)
+                    SELECT :title, :message, 'BudgetChange', :setting_id, s.id, :author, 'student.html', :created_by
+                    FROM students s
+                    WHERE s.id = ANY(string_to_array(:student_ids_str, ',')::UUID[]) AND s.is_deleted = false
+                ");
+                $notifStmt->execute([
+                    'title' => "คุณมีรายการเรียกเก็บเงินใหม่: {$title}",
+                    'message' => "รายการเรียกเก็บเงินรอบบิลเดือน {$monthText} ค่าห้องสัปดาห์ละ {$weeklyFee} บาท จำนวน {$numberOfWeeks} สัปดาห์",
+                    'setting_id' => $id,
+                    'author' => $user['full_name'],
+                    'student_ids_str' => $studentIdsStr,
+                    'created_by' => $user['id']
+                ]);
             } else {
                 // Global notification for all students
+                $notifStmt = $db->prepare("
+                    INSERT INTO notifications (title, message, type, setting_id, student_id, author_name, target_page, created_by)
+                    VALUES (:title, :message, 'BudgetChange', :setting_id, :student_id, :author, 'student.html', :created_by)
+                ");
                 $notifStmt->execute([
                     'title' => "เปิดรอบบิลเรียกเก็บเงินใหม่: {$title}",
                     'message' => "รายการเรียกเก็บเงินรอบบิลเดือน {$monthText} ค่าห้องสัปดาห์ละ {$weeklyFee} บาท จำนวน {$numberOfWeeks} สัปดาห์",

@@ -1003,6 +1003,10 @@
 
         /* Mobile specific styles */
         @media (max-width: 768px) {
+            body {
+                padding-bottom: 75px !important;
+            }
+
             #mobile-hamburger-btn {
                 display: flex !important;
                 align-items: center;
@@ -1010,7 +1014,48 @@
             }
 
             .top-bar-nav {
-                display: none !important;
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                background: var(--bg-glass);
+                backdrop-filter: blur(25px);
+                -webkit-backdrop-filter: blur(25px);
+                border-top: 1px solid var(--border-glass);
+                display: flex !important;
+                justify-content: space-around;
+                align-items: center;
+                padding: 0.5rem 0;
+                margin: 0 !important;
+                z-index: 1000;
+                box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+            }
+
+            .top-bar-nav .nav-tab-btn {
+                flex: 1;
+                display: inline-flex !important;
+                flex-direction: column !important;
+                align-items: center !important;
+                justify-content: center !important;
+                gap: 0.25rem !important;
+                font-size: 0.72rem !important;
+                padding: 0.4rem 0 !important;
+                color: var(--text-secondary);
+                background: transparent !important;
+                border: none !important;
+                box-shadow: none !important;
+            }
+
+            .top-bar-nav .nav-tab-btn i {
+                font-size: 1.15rem !important;
+                margin: 0 !important;
+            }
+
+            .top-bar-nav .nav-tab-btn.active {
+                color: var(--accent) !important;
+                background: transparent !important;
+                border-color: transparent !important;
+                box-shadow: none !important;
             }
 
             .top-bar-right {
@@ -1241,15 +1286,8 @@
                 gap: 0.5rem !important;
             }
 
-            /* Nav tab buttons inside drawer */
-            .mobile-drawer .nav-tab-btn {
-                width: 100% !important;
-                justify-content: flex-start !important;
-                padding: 0.75rem 1rem !important;
-                font-size: 0.9rem !important;
-                border-radius: var(--border-radius-sm) !important;
-            }
-        }
+
+            /* Nav tab buttons inside drawer styling removed as tabs are now in bottom navigation bar */
     </style>
 </head>
 
@@ -1975,9 +2013,6 @@
             <!-- Profile Section -->
             <div id="mobile-profile-container"></div>
             <hr style="border: 0; border-top: 1px solid var(--border-glass); margin: 1rem 0;">
-            <!-- Navigation Section -->
-            <div id="mobile-nav-container"></div>
-            <hr style="border: 0; border-top: 1px solid var(--border-glass); margin: 1rem 0;">
             <!-- Actions Section -->
             <div id="mobile-actions-container"></div>
         </div>
@@ -2021,7 +2056,6 @@
             function setupMobileDrawer() {
                 const isMobile = window.innerWidth <= 768;
                 const profileContainer = document.getElementById('mobile-profile-container');
-                const navContainer = document.getElementById('mobile-nav-container');
                 const actionsContainer = document.getElementById('mobile-actions-container');
 
                 const desktopLeft = document.querySelector('.top-bar-left');
@@ -2034,12 +2068,8 @@
                     if (profileBadge && profileContainer && profileBadge.parentElement !== profileContainer) {
                         profileContainer.appendChild(profileBadge);
                     }
-                    if (topBarNav && navContainer && topBarNav.parentElement !== navContainer) {
-                        navContainer.appendChild(topBarNav);
-                        topBarNav.style.display = 'flex';
-                        topBarNav.style.flexDirection = 'column';
-                        topBarNav.style.gap = '0.5rem';
-                        topBarNav.style.width = '100%';
+                    if (topBarNav && topBarNav.parentElement !== document.body) {
+                        document.body.appendChild(topBarNav);
                     }
                     if (topBarActions && actionsContainer && topBarActions.parentElement !== actionsContainer) {
                         actionsContainer.appendChild(topBarActions);
@@ -2055,10 +2085,6 @@
                     }
                     if (topBarNav && desktopLeft && topBarNav.parentElement !== desktopLeft) {
                         desktopLeft.appendChild(topBarNav);
-                        topBarNav.style.display = 'flex';
-                        topBarNav.style.flexDirection = 'row';
-                        topBarNav.style.gap = '';
-                        topBarNav.style.width = '';
                     }
                     if (topBarActions && desktopRight && topBarActions.parentElement !== desktopRight) {
                         desktopRight.appendChild(topBarActions);

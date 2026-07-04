@@ -127,7 +127,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Load Student Payment Ledger
     if (monthsTabContainer) {
-        loadStudentLedger();
+        await loadStudentLedger();
     }
 
     // Initialize PR Dashboard
@@ -830,7 +830,10 @@ if (submitSlipBtn) {
         });
 
         if (hasEarlyPayment && !isUpdateMode) {
-            const confirmEarly = confirm("สัปดาห์บางส่วนที่คุณเลือกชำระเงิน ยังไม่ถึงกำหนดเวลาเก็บเงินอย่างเป็นทางการ คุณต้องการยืนยันการชำระเงินค่าเทอมล่วงหน้าหรือไม่?");
+            const confirmEarly = await showConfirm(
+                'ยืนยันชำระเงินล่วงหน้า',
+                "สัปดาห์บางส่วนที่คุณเลือกชำระเงิน ยังไม่ถึงกำหนดเวลาเก็บเงินอย่างเป็นทางการ คุณต้องการยืนยันการชำระเงินค่าเทอมล่วงหน้าหรือไม่?"
+            );
             if (!confirmEarly) return;
         }
 
@@ -850,6 +853,7 @@ if (submitSlipBtn) {
             formData.append('weeks', JSON.stringify(selectedWeeks));
         }
 
+        Loading.show('กำลังนำส่งหลักฐานสลิปโอนเงิน...');
         try {
             const response = await fetch(endpointUrl, {
                 method: 'POST',
@@ -878,6 +882,8 @@ if (submitSlipBtn) {
             submitSlipBtn.disabled = false;
             submitSlipBtn.textContent = 'ยืนยันและนำส่งสลิปโอนเงิน';
             console.error(e);
+        } finally {
+            Loading.hide();
         }
     });
 }
@@ -1741,3 +1747,186 @@ async function loadStudentActivityData() {
         console.error(e);
     }
 }
+
+/**
+ * Display a custom toast notification in the bottom right corner
+ * @param {string} message - Notification text
+ * @param {string} type - 'success', 'error', or 'warning'
+ */
+function showToast(message, type = 'success') {
+    let container = document.querySelector('.toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+
+    let iconClass = 'fa-circle-check';
+    let iconColor = 'var(--status-green-text)';
+    if (type === 'error') {
+        iconClass = 'fa-circle-xmark';
+        iconColor = 'var(--status-red-text)';
+    } else if (type === 'warning') {
+        iconClass = 'fa-circle-exclamation';
+        iconColor = 'var(--accent)';
+    }
+
+    toast.innerHTML = `
+        <i class="fa-solid ${iconClass}" style="color: ${iconColor}; font-size: 1.25rem;"></i>
+        <div style="font-size: 0.95rem; font-weight: 500; font-family: var(--font-body);">${message}</div>
+    `;
+
+    container.appendChild(toast);
+
+    // Auto-remove after 3 seconds
+    setTimeout(() => {
+        toast.classList.add('fade-out');
+        toast.addEventListener('animationend', () => {
+            toast.remove();
+            if (container.children.length === 0) {
+                container.remove();
+            }
+        });
+    }, 3000);
+}
+
+/**
+ * Display a custom confirmation modal returning a promise (true/false)
+ * @param {string} title - Title of the confirm dialog
+ * @param {string} message - Question/message details
+ * @returns {Promise<boolean>}
+ */
+function showConfirm(title, message) {
+    return new Promise((resolve) => {
+        const modalId = 'custom-confirm-modal';
+        let modalEl = document.getElementById(modalId);
+        if (modalEl) modalEl.remove();
+
+        modalEl = document.createElement('div');
+        modalEl.id = modalId;
+        modalEl.className = 'modal-backdrop';
+        modalEl.style.zIndex = '20000';
+
+        modalEl.innerHTML = `
+            <div class="modal-content" style="background-color: var(--modal-bg); max-width: 400px; width: 100%; box-shadow: var(--shadow-xl); border: 1px solid var(--border-glass);">
+                <div class="modal-header" style="border-bottom: none; padding-bottom: 0.5rem;">
+                    <h3 style="font-family: var(--font-heading); margin: 0; color: var(--text-primary); font-size: 1.2rem;">${title}</h3>
+                </div>
+                <div class="modal-body" style="padding-top: 0.5rem; padding-bottom: 1.5rem;">
+                    <p style="margin: 0; font-size: 0.95rem; color: var(--text-secondary); line-height: 1.5; white-space: pre-line;">${message}</p>
+                </div>
+                <div class="modal-footer" style="margin-top: 0; border-top: none; padding-top: 0; gap: 0.75rem; justify-content: flex-end; display: flex;">
+                    <button type="button" id="confirm-cancel-btn" class="btn btn-secondary" style="padding: 0.5rem 1rem;">ยกเลิก</button>
+                    <button type="button" id="confirm-ok-btn" class="btn btn-primary" style="padding: 0.5rem 1rem; background-color: var(--accent); color: white; border: none;">ตกลง</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modalEl);
+
+        // Force reflow and add active class for transition
+        modalEl.offsetHeight;
+        modalEl.classList.add('active');
+
+        const cancelBtn = modalEl.querySelector('#confirm-cancel-btn');
+        const okBtn = modalEl.querySelector('#confirm-ok-btn');
+
+        const cleanUp = (value) => {
+            modalEl.classList.remove('active');
+            setTimeout(() => {
+                modalEl.remove();
+            }, 300);
+            resolve(value);
+        };
+
+        cancelBtn.addEventListener('click', () => cleanUp(false));
+        okBtn.addEventListener('click', () => cleanUp(true));
+
+        // Clicking backdrop triggers cancel
+        modalEl.addEventListener('click', (e) => {
+            if (e.target === modalEl) {
+                cleanUp(false);
+            }
+        });
+    });
+}
+
+/**
+ * Global Loading Overlay Helper
+ */
+const Loading = {
+    show(message = 'กำลังโหลดข้อมูล...') {
+        let overlay = document.getElementById('global-loading-overlay');
+        if (overlay) overlay.remove();
+
+        overlay = document.createElement('div');
+        overlay.id = 'global-loading-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(9, 13, 22, 0.7);
+            backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 1.5rem;
+            z-index: 99999;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        `;
+
+        overlay.innerHTML = `
+            <div class="loading-spinner" style="
+                width: 50px;
+                height: 50px;
+                border: 4px solid rgba(255, 255, 255, 0.1);
+                border-top: 4px solid var(--accent, #f97316);
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+            "></div>
+            <div style="
+                color: #ffffff;
+                font-family: var(--font-body);
+                font-size: 1.1rem;
+                font-weight: 500;
+                letter-spacing: 0.5px;
+            ">${message}</div>
+        `;
+
+        // Add keyframes dynamically if not exists
+        if (!document.getElementById('loading-spin-style')) {
+            const style = document.createElement('style');
+            style.id = 'loading-spin-style';
+            style.textContent = `
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        document.body.appendChild(overlay);
+
+        // Force reflow and transition
+        overlay.offsetHeight;
+        overlay.style.opacity = '1';
+    },
+
+    hide() {
+        const overlay = document.getElementById('global-loading-overlay');
+        if (!overlay) return;
+
+        overlay.style.opacity = '0';
+        setTimeout(() => {
+            overlay.remove();
+        }, 200);
+    }
+};
