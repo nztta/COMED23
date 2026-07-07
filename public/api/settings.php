@@ -17,6 +17,20 @@ if ($method === 'OPTIONS') {
 if ($method === 'GET') {
     try {
         $db = getDatabaseConnection();
+        $action = $_GET['action'] ?? null;
+
+        if ($action === 'get_system_settings') {
+            $stmt = $db->query("SELECT key, value FROM system_settings");
+            $rows = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+            if (!isset($rows['payment_policy_enabled'])) {
+                $rows['payment_policy_enabled'] = 'false';
+            }
+            if (!isset($rows['payment_policy_text'])) {
+                $rows['payment_policy_text'] = 'ฉันรับรองว่าข้อมูลการโอนเงินและสลิปนี้ถูกต้องเป็นความจริงทุกประการ';
+            }
+            sendSuccess($rows);
+        }
+
         $id = $_GET['id'] ?? null;
 
         if ($id) {
@@ -54,6 +68,44 @@ if ($method === 'GET') {
 if ($method === 'POST') {
     // Authenticate user & check role
     $user = requireRole(['Admin', 'Finance']);
+
+    $action = $_GET['action'] ?? null;
+    if ($action === 'save_system_settings') {
+        $input = json_decode(file_get_contents('php://input'), true);
+        $enabled = ($input['payment_policy_enabled'] ?? 'false') === 'true' ? 'true' : 'false';
+        $text = trim($input['payment_policy_text'] ?? '');
+
+        if (empty($text)) {
+            sendError('ข้อความนโยบายการจัดเก็บเงินห้ามว่าง');
+        }
+
+        try {
+            $db = getDatabaseConnection();
+            $stmt = $db->prepare("
+                INSERT INTO system_settings (key, value, updated_at, updated_by)
+                VALUES ('payment_policy_enabled', :enabled, NOW(), :user_id)
+                ON CONFLICT (key) DO UPDATE SET value = :enabled, updated_at = NOW(), updated_by = :user_id
+            ");
+            $stmt->execute(['enabled' => $enabled, 'user_id' => $user['id']]);
+
+            $stmt2 = $db->prepare("
+                INSERT INTO system_settings (key, value, updated_at, updated_by)
+                VALUES ('payment_policy_text', :text, NOW(), :user_id)
+                ON CONFLICT (key) DO UPDATE SET value = :text, updated_at = NOW(), updated_by = :user_id
+            ");
+            $stmt2->execute(['text' => $text, 'user_id' => $user['id']]);
+
+            logAudit($user['id'], $user['email'], 'update_system_settings', 'system_settings', null, null, [
+                'payment_policy_enabled' => $enabled,
+                'payment_policy_text' => $text
+            ]);
+
+            sendSuccess('บันทึกการตั้งค่าระบบเรียบร้อยแล้ว');
+        } catch (Exception $e) {
+            sendError('Failed to save settings: ' . $e->getMessage(), 500);
+        }
+        exit;
+    }
 
     // Parse input
     $input = json_decode(file_get_contents('php://input'), true);
@@ -204,68 +256,48 @@ if ($method === 'POST') {
 
         } else {
             // Create New Configuration
-            // Check duplicate month/year (including soft-deleted)
-            $checkStmt = $db->prepare("SELECT id, is_deleted FROM monthly_payment_settings WHERE month = :month AND year = :year");
-            $checkStmt->execute(['month' => $month, 'year' => $year]);
-            $existingRow = $checkStmt->fetch();
-
-            if ($existingRow && !$existingRow['is_deleted']) {
+            // Check double submission in last 5 seconds (Double Submission Prevention)
+            $dupStmt = $db->prepare("
+                SELECT id FROM monthly_payment_settings 
+                WHERE month = :month AND year = :year AND title = :title 
+                  AND created_by = :created_by AND created_at >= NOW() - INTERVAL '5 seconds'
+                  AND is_deleted = false
+            ");
+            $dupStmt->execute([
+                'month' => $month,
+                'year' => $year,
+                'title' => $title,
+                'created_by' => $user['id']
+            ]);
+            if ($dupStmt->fetch()) {
                 $db->rollBack();
-                sendError('รายการเรียกเก็บเงินของเดือนและปีนี้มีอยู่แล้วในระบบ');
+                sendError('ตรวจพบการส่งข้อมูลซ้ำซ้อน กรุณารอสักครู่ (Double Submission Prevention)');
             }
 
-            if ($existingRow && $existingRow['is_deleted']) {
-                // Restore soft-deleted record with new data
-                $id = $existingRow['id'];
-                $restoreStmt = $db->prepare("
-                    UPDATE monthly_payment_settings 
-                    SET weekly_fee = :weekly_fee, number_of_weeks = :number_of_weeks, 
-                        open_date = :open_date, due_dates = :due_dates::DATE[], close_date = :close_date, 
-                        status = :status, title = :title, description = :description, 
-                        custom_members = :custom_members, is_deleted = false,
-                        created_by = :created_by, updated_by = :updated_by, updated_at = NOW()
-                    WHERE id = :id
-                ");
-                $restoreStmt->execute([
-                    'id' => $id,
-                    'weekly_fee' => $weeklyFee,
-                    'number_of_weeks' => $numberOfWeeks,
-                    'open_date' => $openDate,
-                    'due_dates' => $pgDueDates,
-                    'close_date' => $closeDate,
-                    'status' => $status,
-                    'title' => $title,
-                    'description' => $description,
-                    'custom_members' => $customMembersJson,
-                    'created_by' => $user['id'],
-                    'updated_by' => $user['id']
-                ]);
-            } else {
-                // Fresh insert
-                $insertStmt = $db->prepare("
-                    INSERT INTO monthly_payment_settings (
-                        month, year, weekly_fee, number_of_weeks, open_date, due_dates, close_date, status, title, description, custom_members, created_by, updated_by
-                    ) VALUES (
-                        :month, :year, :weekly_fee, :number_of_weeks, :open_date, :due_dates::DATE[], :close_date, :status, :title, :description, :custom_members, :created_by, :updated_by
-                    ) RETURNING id
-                ");
-                $insertStmt->execute([
-                    'month' => $month,
-                    'year' => $year,
-                    'weekly_fee' => $weeklyFee,
-                    'number_of_weeks' => $numberOfWeeks,
-                    'open_date' => $openDate,
-                    'due_dates' => $pgDueDates,
-                    'close_date' => $closeDate,
-                    'status' => $status,
-                    'title' => $title,
-                    'description' => $description,
-                    'custom_members' => $customMembersJson,
-                    'created_by' => $user['id'],
-                    'updated_by' => $user['id']
-                ]);
-                $id = $insertStmt->fetchColumn();
-            }
+            // Fresh insert
+            $insertStmt = $db->prepare("
+                INSERT INTO monthly_payment_settings (
+                    month, year, weekly_fee, number_of_weeks, open_date, due_dates, close_date, status, title, description, custom_members, created_by, updated_by
+                ) VALUES (
+                    :month, :year, :weekly_fee, :number_of_weeks, :open_date, :due_dates::DATE[], :close_date, :status, :title, :description, :custom_members, :created_by, :updated_by
+                ) RETURNING id
+            ");
+            $insertStmt->execute([
+                'month' => $month,
+                'year' => $year,
+                'weekly_fee' => $weeklyFee,
+                'number_of_weeks' => $numberOfWeeks,
+                'open_date' => $openDate,
+                'due_dates' => $pgDueDates,
+                'close_date' => $closeDate,
+                'status' => $status,
+                'title' => $title,
+                'description' => $description,
+                'custom_members' => $customMembersJson,
+                'created_by' => $user['id'],
+                'updated_by' => $user['id']
+            ]);
+            $id = $insertStmt->fetchColumn();
 
             // Populate weekly records for targeted students in a single query
             $studentIdsStr = implode(',', $targetStudents);

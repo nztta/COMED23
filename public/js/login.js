@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const isEmail = identity.includes('@');
             submitBtn.disabled = true;
-            submitBtn.textContent = 'กำลังตรวจสอบข้อมูล...';
+            submitBtn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> กำลังตรวจสอบข้อมูล...';
 
             if (isEmail) {
                 // --- Staff Login Flow ---
@@ -100,12 +100,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         showAlert('พบบัญชีในระบบหลัก แต่บัญชีของคุณยังไม่ได้ลงทะเบียนสิทธิ์ในระบบบัญชี COMED23');
                         submitBtn.disabled = false;
-                        submitBtn.textContent = 'เข้าสู่ระบบ';
+                        submitBtn.innerHTML = 'เข้าสู่ระบบ';
                     }
                 } catch (err) {
                     showAlert(err.message || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง หรือไม่มีสิทธิ์เข้าถึงระบบนี้');
                     submitBtn.disabled = false;
-                    submitBtn.textContent = 'เข้าสู่ระบบ';
+                    submitBtn.innerHTML = 'เข้าสู่ระบบ';
                 }
             } else {
                 // --- Student Login Flow ---
@@ -143,7 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         );
 
                         submitBtn.disabled = false;
-                        submitBtn.textContent = "เข้าสู่ระบบนักศึกษา";
+                        submitBtn.innerHTML = 'เข้าสู่ระบบ';
                         return;
                     }
 
@@ -160,12 +160,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         showAlert(result.message || "รหัสประจำตัวนักศึกษาหรือรหัสผ่านไม่ถูกต้อง");
 
                         submitBtn.disabled = false;
-                        submitBtn.textContent = "เข้าสู่ระบบนักศึกษา";
+                        submitBtn.innerHTML = 'เข้าสู่ระบบ';
                     }
                 } catch (err) {
                     showAlert('ระบบเครือข่ายขัดข้อง ไม่สามารถเชื่อมต่อระบบตรวจสอบสิทธิ์ได้');
                     submitBtn.disabled = false;
-                    submitBtn.textContent = 'เข้าสู่ระบบนักศึกษา';
+                    submitBtn.innerHTML = 'เข้าสู่ระบบ';
                     console.error(err);
                 }
             }

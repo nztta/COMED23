@@ -146,7 +146,7 @@ if ($method === 'GET' && isset($_GET['action']) && $_GET['action'] === 'student_
         // 2. Fetch all monthly settings (excluding archived settings for payment submission)
         // Keep archived settings for color rendering of past paid history, but flag them.
         $settingsStmt = $db->prepare("
-            SELECT id, month, year, weekly_fee, number_of_weeks, open_date, due_dates, close_date, status
+            SELECT id, month, year, weekly_fee, number_of_weeks, open_date, due_dates, close_date, status, title, description, custom_members
             FROM monthly_payment_settings
             WHERE is_deleted = false
             ORDER BY year ASC, month ASC
@@ -182,6 +182,14 @@ if ($method === 'GET' && isset($_GET['action']) && $_GET['action'] === 'student_
         $resultMonths = [];
 
         foreach ($monthlySettings as $setting) {
+            // Check if this setting is targeted to specific members
+            $customMembers = $setting['custom_members'] ?? null;
+            if (!empty($customMembers)) {
+                $membersArray = json_decode($customMembers, true);
+                if (is_array($membersArray) && !in_array($studentId, $membersArray)) {
+                    continue; // Skip settings not targeted to this student
+                }
+            }
             $settingId = $setting['id'];
             $dueDatesStr = trim($setting['due_dates'], '{}');
             $dueDates = empty($dueDatesStr) ? [] : explode(',', $dueDatesStr);
@@ -279,6 +287,8 @@ if ($method === 'GET' && isset($_GET['action']) && $_GET['action'] === 'student_
                 'weekly_fee' => (float)$setting['weekly_fee'],
                 'number_of_weeks' => $numWeeks,
                 'status' => $setting['status'],
+                'title' => $setting['title'] ?? '',
+                'description' => $setting['description'] ?? '',
                 'color' => $monthColor,
                 'weeks' => $weeksData,
                 'has_pending_slip' => $hasPending,
@@ -307,6 +317,8 @@ if ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'submit'
     $studentId = $_SESSION['student_id'];
     $monthSettingId = $_POST['month_setting_id'] ?? '';
     $weeksInput = $_POST['weeks'] ?? ''; // JSON array e.g. "[2,3]"
+    $policyAcceptedInput = $_POST['policy_accepted'] ?? 'false';
+    $policyTextAccepted = $_POST['policy_text_accepted'] ?? '';
 
     if (empty($studentId) || empty($monthSettingId) || empty($weeksInput)) {
         sendError('Student ID, Month Setting ID, and Weeks selection are required');
@@ -343,6 +355,15 @@ if ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'submit'
         if ($setting['status'] === 'Closed') {
             $db->rollBack();
             sendError('Payment for this month is currently closed.');
+        }
+
+        // 1.5 Verify consent policy if enabled
+        $sysStmt = $db->query("SELECT value FROM system_settings WHERE key = 'payment_policy_enabled'");
+        $policyEnabled = $sysStmt->fetchColumn() === 'true';
+
+        if ($policyEnabled && $policyAcceptedInput !== 'true') {
+            $db->rollBack();
+            sendError('คุณต้องกดยอมรับเงื่อนไขและนโยบายก่อนส่งหลักฐานการโอนเงิน');
         }
 
         // 2. Prevent student from submitting another slip for the SAME month while one is pending
@@ -394,9 +415,9 @@ if ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'submit'
         // 6. Insert slip submission
         $insertSubmission = $db->prepare("
             INSERT INTO slip_submissions (
-                student_id, month_setting_id, weeks, amount, slip_url, verification_status
+                student_id, month_setting_id, weeks, amount, slip_url, verification_status, policy_accepted, policy_text_accepted
             ) VALUES (
-                :student_id, :month_setting_id, :weeks::INT[], :amount, :slip_url, 'Pending'
+                :student_id, :month_setting_id, :weeks::INT[], :amount, :slip_url, 'Pending', :policy_accepted, :policy_text_accepted
             ) RETURNING id
         ");
         $insertSubmission->execute([
@@ -404,7 +425,9 @@ if ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'submit'
             'month_setting_id' => $monthSettingId,
             'weeks' => $pgWeeks,
             'amount' => $calculatedAmount,
-            'slip_url' => $slipUrl
+            'slip_url' => $slipUrl,
+            'policy_accepted' => ($policyAcceptedInput === 'true'),
+            'policy_text_accepted' => empty($policyTextAccepted) ? null : $policyTextAccepted
         ]);
         $submissionId = $insertSubmission->fetchColumn();
 

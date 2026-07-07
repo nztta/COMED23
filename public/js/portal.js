@@ -9,6 +9,8 @@ let isUpdateMode = false;
 let activeSubmissionId = null;
 let compressedFile = null;
 let currentStep = 1;
+let paymentPolicyEnabled = false;
+let paymentPolicyText = '';
 
 // DOM Element References
 const step1Section = document.getElementById('step-1-section');
@@ -130,6 +132,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         await loadStudentLedger();
     }
 
+    // Load Policy Settings
+    await loadPolicySettings();
+
     // Initialize PR Dashboard
     initPRDashboard();
 
@@ -138,6 +143,52 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Initialize Wizard Buttons
     setupWizardListeners();
+
+    // Bind Policy Checkbox Change Event
+    const policyCheckbox = document.getElementById('payment-policy-checkbox');
+    if (policyCheckbox) {
+        policyCheckbox.addEventListener('change', () => {
+            updateSubmitButtonState();
+        });
+    }
+
+    // Bind Policy Link to open modal
+    const policyLink = document.getElementById('policy-link');
+    const policyModal = document.getElementById('policy-details-modal');
+    const closePolicyBtn = document.getElementById('close-policy-btn');
+    const closePolicyModalBtn = document.getElementById('close-policy-modal-btn');
+
+    if (policyLink && policyModal) {
+        policyLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            policyModal.classList.add('active');
+        });
+
+        const closePolicy = () => {
+            policyModal.classList.remove('active');
+        };
+
+        if (closePolicyBtn) closePolicyBtn.addEventListener('click', closePolicy);
+        if (closePolicyModalBtn) closePolicyModalBtn.addEventListener('click', closePolicy);
+        
+        policyModal.addEventListener('click', (e) => {
+            if (e.target === policyModal) {
+                closePolicy();
+            }
+        });
+    }
+    // Offline status detection & Banner rendering
+    const offlineBanner = document.getElementById('offline-banner');
+    const updateOnlineStatus = () => {
+        if (navigator.onLine) {
+            if (offlineBanner) offlineBanner.style.display = 'none';
+        } else {
+            if (offlineBanner) offlineBanner.style.display = 'flex';
+        }
+    };
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+    updateOnlineStatus(); // initial check
 });
 
 
@@ -175,7 +226,7 @@ async function loadStudentLedger() {
             renderMonthsTabs();
             updateMiniPaymentStats();
             renderFinancialSummaries();
-            
+
             // Auto-select month based on url param or default
             const urlParams = new URLSearchParams(window.location.search);
             const paySettingId = urlParams.get('pay_setting_id');
@@ -202,22 +253,53 @@ async function loadStudentLedger() {
     }
 
     if (!hasRenderedCache) {
-        if (monthsTabContainer) monthsTabContainer.innerHTML = '<div class="skeleton" style="height: 50px; width: 100%;"></div>';
-        if (weeksGridContainer) weeksGridContainer.innerHTML = '<div class="skeleton" style="height: 120px; width: 100%;"></div>';
+        if (monthsTabContainer) {
+            monthsTabContainer.innerHTML = `
+                <div style="display: flex; gap: 0.75rem; width: 100%;">
+                    <div class="shimmer-loader" style="height: 60px; width: 120px; border-radius: var(--border-radius-sm);"></div>
+                    <div class="shimmer-loader" style="height: 60px; width: 120px; border-radius: var(--border-radius-sm);"></div>
+                    <div class="shimmer-loader" style="height: 60px; width: 120px; border-radius: var(--border-radius-sm);"></div>
+                </div>
+            `;
+        }
+        if (weeksGridContainer) {
+            weeksGridContainer.innerHTML = `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.25rem; width: 100%;">
+                    <div class="shimmer-loader" style="height: 120px; border-radius: var(--border-radius-md);"></div>
+                    <div class="shimmer-loader" style="height: 120px; border-radius: var(--border-radius-md);"></div>
+                    <div class="shimmer-loader" style="height: 120px; border-radius: var(--border-radius-md);"></div>
+                </div>
+            `;
+        }
     }
 
     try {
         const response = await fetch(`${CONFIG.API_BASE_URL}/submissions.php?action=student_status&student_id=${currentStudent.id}`);
+        
+        if (response.status === 401 || response.status === 404 || response.status === 403) {
+            localStorage.removeItem('student_session');
+            window.location.href = 'login.html';
+            return;
+        }
+
         const result = await response.json();
+
+        if (result.status === 'failed') {
+            if (result.message && (result.message.includes('exist') || result.message.includes('inactive') || result.message.includes('Unauthorized') || result.message.includes('expired'))) {
+                localStorage.removeItem('student_session');
+                window.location.href = 'login.html';
+                return;
+            }
+        }
 
         if (result.status === 'success') {
             const newDataStr = JSON.stringify(result.data);
-            
+
             // Only re-render if data has changed or if we haven't rendered cache
             if (newDataStr !== cachedDataStr || !hasRenderedCache) {
                 monthlyStatusData = result.data;
                 localStorage.setItem(cacheKey, newDataStr);
-                
+
                 renderMonthsTabs();
                 updateMiniPaymentStats();
                 renderFinancialSummaries();
@@ -253,6 +335,56 @@ async function loadStudentLedger() {
     }
 }
 
+async function loadPolicySettings() {
+    try {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/settings.php?action=get_system_settings`);
+        const result = await response.json();
+        if (result.status === 'success') {
+            paymentPolicyEnabled = result.data.payment_policy_enabled === 'true';
+            paymentPolicyText = result.data.payment_policy_text || '';
+
+            const consentContainer = document.getElementById('policy-consent-container');
+            const checkbox = document.getElementById('payment-policy-checkbox');
+            const modalBody = document.getElementById('modal-policy-body');
+
+            if (modalBody) {
+                modalBody.textContent = paymentPolicyText;
+            }
+
+            if (consentContainer) {
+                if (paymentPolicyEnabled) {
+                    consentContainer.classList.remove('hidden');
+                    if (checkbox) {
+                        checkbox.checked = false;
+                    }
+                } else {
+                    consentContainer.classList.add('hidden');
+                    if (checkbox) {
+                        checkbox.checked = true;
+                    }
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Failed to load policy settings:', e);
+    }
+}
+
+function updateSubmitButtonState() {
+    const count = selectedWeeks.length;
+    const hasFile = !!compressedFile;
+    let policyOk = true;
+
+    if (paymentPolicyEnabled && !isUpdateMode) {
+        const checkbox = document.getElementById('payment-policy-checkbox');
+        policyOk = checkbox && checkbox.checked;
+    }
+
+    if (submitSlipBtn) {
+        submitSlipBtn.disabled = !(count > 0 && hasFile && policyOk);
+    }
+}
+
 function renderMonthsTabs() {
     if (!monthsTabContainer) return;
     monthsTabContainer.innerHTML = '';
@@ -269,12 +401,16 @@ function renderMonthsTabs() {
             tab.classList.add('active');
         }
 
-        tab.innerHTML = `
-            <span class="month-tab-name">${monthNames[m.month - 1]}</span>
-            <span class="month-tab-year">${m.year}</span>
-            <span class="status-dot"></span>
-        `;
+        const displayTitle = m.title || `${monthNames[m.month - 1]}`;
+        const displayYear = m.title ? `${monthNames[m.month - 1]} ${m.year}` : `${m.year}`;
 
+        tab.innerHTML = `
+            <div class="month-tab-info">
+                <span class="month-tab-name" title="${displayTitle}">${displayTitle}</span>
+                <span class="month-tab-year">${displayYear}</span>
+            </div>
+            <i class="status-dot ${m.color}"></i>
+        `;
         tab.addEventListener('click', () => selectMonth(m.id));
         monthsTabContainer.appendChild(tab);
     });
@@ -301,12 +437,16 @@ function selectMonth(settingId) {
             titleEl.textContent = `รอบบิลที่ต้องชำระ: ${selectedMonthSetting.title || ''}`;
         }
         if (descEl) {
-            descEl.textContent = selectedMonthSetting.description || `อัตราค่าบำรุงห้องรายสัปดาห์: ${selectedMonthSetting.weekly_fee} บาท/สัปดาห์ (จำนวน ${selectedMonthSetting.number_of_weeks} สัปดาห์)`;
+            if (selectedMonthSetting.number_of_weeks === 1) {
+                descEl.textContent = selectedMonthSetting.description || `ยอดเรียกเก็บเงิน: ${selectedMonthSetting.weekly_fee} บาท`;
+            } else {
+                descEl.textContent = selectedMonthSetting.description || `อัตราค่าบำรุงห้องรายสัปดาห์: ${selectedMonthSetting.weekly_fee} บาท/สัปดาห์ (จำนวน ${selectedMonthSetting.number_of_weeks} สัปดาห์)`;
+            }
         }
     }
 
-    renderWeeksGrid();
     resetPaymentForm();
+    renderWeeksGrid();
 }
 
 function renderWeeksGrid() {
@@ -316,6 +456,20 @@ function renderWeeksGrid() {
     if (!selectedMonthSetting) {
         weeksGridContainer.innerHTML = '<div class="text-center text-muted" style="padding: 2rem; color: var(--text-muted); font-size: 0.95rem;"><i class="fas fa-info-circle"></i> ยังไม่มีเกณฑ์จัดเก็บเงินที่กำหนดไว้ในขณะนี้</div>';
         return;
+    }
+
+    // Update grid card header dynamically based on whether it is weekly or single monthly billing
+    const gridCard = weeksGridContainer.parentElement;
+    if (gridCard) {
+        gridCard.classList.remove('hidden');
+    }
+    const headerEl = gridCard ? gridCard.querySelector('h3') : null;
+    if (headerEl) {
+        if (selectedMonthSetting.number_of_weeks === 1) {
+            headerEl.innerHTML = `<i class="fas fa-list-ul"></i> รายละเอียดรายการชำระเงิน`;
+        } else {
+            headerEl.innerHTML = `<i class="fas fa-list-ul"></i> สถานะการชำระเงินรายสัปดาห์`;
+        }
     }
 
     const statusTranslations = {
@@ -332,9 +486,10 @@ function renderWeeksGrid() {
         // Format Due Date
         const dueDateObj = new Date(w.due_date);
         const formattedDate = dueDateObj.toLocaleDateString('th-TH', { month: 'short', day: 'numeric', year: 'numeric' });
+        const labelText = selectedMonthSetting.number_of_weeks === 1 ? (selectedMonthSetting.title || 'ยอดค้างจ่าย') : `สัปดาห์ที่ ${w.week_number}`;
 
         card.innerHTML = `
-            <div class="week-number" style="font-family: var(--font-heading);">สัปดาห์ที่ ${w.week_number}</div>
+            <div class="week-number" style="font-family: var(--font-heading);">${labelText}</div>
             <div class="week-amount">${w.amount} บาท</div>
             <div class="week-due">กำหนดส่ง: ${formattedDate}</div>
             <span class="badge badge-${w.color}">${statusTranslations[w.status] || w.status}</span>
@@ -389,7 +544,7 @@ function renderWeeksGrid() {
         const allPaid = selectedMonthSetting.weeks.every(w => w.color === 'green');
         if (allPaid) {
             formContainer.classList.add('hidden');
-            formMessage.textContent = 'คุณชำระเงินค่าเทอมรายสัปดาห์ของเดือนนี้ครบถ้วนเรียบร้อยแล้ว ยินดีด้วย!';
+            formMessage.textContent = 'คุณชำระเงินสำหรับรอบบิลนี้ครบถ้วนเรียบร้อยแล้ว ยินดีด้วย!';
             formMessage.classList.remove('hidden');
         } else {
             formContainer.classList.remove('hidden');
@@ -453,7 +608,12 @@ function resetPaymentForm() {
             <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">สลิปโอนเงิน (รองรับ PNG, JPG, JPEG, PDF ไม่เกิน 5MB)</div>
         `;
     }
-    if (submitSlipBtn) submitSlipBtn.disabled = true;
+    
+    const checkbox = document.getElementById('payment-policy-checkbox');
+    if (checkbox) {
+        checkbox.checked = paymentPolicyEnabled ? false : true;
+    }
+    updateSubmitButtonState();
 
     document.querySelectorAll('[id="total-amount-display"]').forEach(el => el.textContent = '0.00 THB');
     document.querySelectorAll('[id="selected-weeks-summary"]').forEach(el => el.textContent = 'ไม่มี');
@@ -473,11 +633,31 @@ function setupPaymentFormOptions() {
         return;
     }
 
+    // Toggle header and checkbox container visibility based on billing type
+    const selectionHeader = document.getElementById('wizard-selection-header');
+    if (selectedMonthSetting.number_of_weeks === 1) {
+        if (selectionHeader) selectionHeader.style.display = 'none';
+        weekCheckboxesContainer.style.display = 'none';
+    } else {
+        if (selectionHeader) selectionHeader.style.display = 'block';
+        weekCheckboxesContainer.style.display = 'grid';
+    }
+
+    // Hide or show the weekly billing mode selector depending on whether there is only 1 week (monthly bill)
+    const modeSelectors = document.querySelector('.form-mode-selectors');
+    if (modeSelectors) {
+        if (selectedMonthSetting.number_of_weeks === 1) {
+            modeSelectors.style.display = 'none';
+        } else {
+            modeSelectors.style.display = 'flex';
+        }
+    }
+
     // Filter weeks that are unpaid or overdue
     const payableWeeks = selectedMonthSetting.weeks.filter(w => w.color === 'gray' || w.color === 'red');
 
     // Default mode: Pay Remaining Weeks (Recommended / Auto select all)
-    const isPayRemainingMode = document.getElementById('mode-remaining').checked;
+    const isPayRemainingMode = selectedMonthSetting.number_of_weeks === 1 ? true : document.getElementById('mode-remaining').checked;
 
     payableWeeks.forEach(w => {
         const label = document.createElement('label');
@@ -545,14 +725,13 @@ function updatePaymentCalculations() {
     const step3Display = document.getElementById('total-amount-display-step3');
     if (step3Display) step3Display.textContent = formattedAmount;
 
-    const summaryText = count > 0 ? selectedWeeks.map(w => `สัปดาห์ที่ ${w}`).join(', ') : 'ไม่มี';
+    const isOneWeek = selectedMonthSetting ? selectedMonthSetting.number_of_weeks === 1 : false;
+    const summaryText = count > 0
+        ? (isOneWeek ? (selectedMonthSetting.title || 'ยอดเงินเรียกเก็บ') : selectedWeeks.map(w => `สัปดาห์ที่ ${w}`).join(', '))
+        : 'ไม่มี';
     document.querySelectorAll('[id="selected-weeks-summary"]').forEach(el => el.textContent = summaryText);
 
-    if (count > 0 && compressedFile) {
-        if (submitSlipBtn) submitSlipBtn.disabled = false;
-    } else {
-        if (submitSlipBtn) submitSlipBtn.disabled = true;
-    }
+    updateSubmitButtonState();
 }
 
 // -----------------------------------------------------------------------------
@@ -567,8 +746,17 @@ function setupWizardListeners() {
     if (next1) {
         next1.onclick = () => {
             if (selectedWeeks.length === 0) {
-                showToast('กรุณาเลือกสัปดาห์ที่จะชำระเงินอย่างน้อย 1 รายการ', 'error');
+                const isOneWeek = selectedMonthSetting.number_of_weeks === 1;
+                const msg = isOneWeek ? 'กรุณาเลือกรายการที่จะชำระเงิน' : 'กรุณาเลือกสัปดาห์ที่จะชำระเงินอย่างน้อย 1 รายการ';
+                showToast(msg, 'error');
                 return;
+            }
+            if (paymentPolicyEnabled && !isUpdateMode) {
+                const checkbox = document.getElementById('payment-policy-checkbox');
+                if (!checkbox || !checkbox.checked) {
+                    showToast('คุณต้องกดยินยอมและยอมรับในนโยบายก่อนดำเนินการต่อ', 'error');
+                    return;
+                }
             }
             goToWizardStep(2);
 
@@ -658,11 +846,27 @@ function goToWizardStep(step) {
         if (view) {
             if (i === step) {
                 view.classList.remove('hidden');
+                view.classList.remove('animate-fade-scale');
+                void view.offsetWidth; // force reflow
+                view.classList.add('animate-fade-scale');
             } else {
                 view.classList.add('hidden');
+                view.classList.remove('animate-fade-scale');
             }
         }
     }
+
+    if (step === 1) {
+        const consentContainer = document.getElementById('policy-consent-container');
+        if (consentContainer) {
+            if (paymentPolicyEnabled && !isUpdateMode) {
+                consentContainer.classList.remove('hidden');
+            } else {
+                consentContainer.classList.add('hidden');
+            }
+        }
+    }
+    updateSubmitButtonState();
 }
 
 // -----------------------------------------------------------------------------
@@ -775,10 +979,7 @@ if (fileInput) {
         const actionsPanel = document.getElementById('slip-loaded-actions');
         if (actionsPanel) actionsPanel.classList.remove('hidden');
 
-        // Enable submit button
-        if (selectedWeeks.length > 0) {
-            if (submitSlipBtn) submitSlipBtn.disabled = false;
-        }
+        updateSubmitButtonState();
     });
 }
 
@@ -851,6 +1052,10 @@ if (submitSlipBtn) {
             formData.append('student_id', currentStudent.id);
             formData.append('month_setting_id', selectedMonthSetting.id);
             formData.append('weeks', JSON.stringify(selectedWeeks));
+            formData.append('policy_accepted', paymentPolicyEnabled ? 'true' : 'false');
+            if (paymentPolicyEnabled) {
+                formData.append('policy_text_accepted', paymentPolicyText);
+            }
         }
 
         Loading.show('กำลังนำส่งหลักฐานสลิปโอนเงิน...');
@@ -1678,35 +1883,35 @@ function initLedgerFilters() {
 
 async function loadStudentActivityData() {
     if (!currentStudent) return;
-    
+
     // Set student details
     const qrName = document.getElementById('qrcode-student-name');
     const qrId = document.getElementById('qrcode-student-id');
     if (qrName) qrName.textContent = currentStudent.full_name + (currentStudent.nickname ? ` (${currentStudent.nickname})` : '');
     if (qrId) qrId.textContent = 'รหัสประจำตัว: ' + currentStudent.student_id;
-    
+
     // Load QR Code
     const qrContainer = document.getElementById('student-qrcode-container');
     if (qrContainer) {
         const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(currentStudent.student_id)}`;
         qrContainer.innerHTML = `<img src="${qrUrl}" alt="Student QR Code" style="width: 250px; height: 250px; border-radius: 8px;">`;
     }
-    
+
     // Load Attendance History
     const historyContainer = document.getElementById('student-activity-history-container');
     const countBadge = document.getElementById('activity-count-badge');
     if (!historyContainer) return;
-    
+
     try {
         const response = await fetch(`${CONFIG.API_BASE_URL}/activities.php?action=my_attendance`);
         const result = await response.json();
-        
+
         if (result.status === 'success') {
             const list = result.data || [];
             if (countBadge) {
                 countBadge.textContent = `${list.length} กิจกรรม`;
             }
-            
+
             if (list.length === 0) {
                 historyContainer.innerHTML = `
                     <div class="text-center text-muted" style="padding: 3rem 1rem;">
@@ -1717,7 +1922,7 @@ async function loadStudentActivityData() {
                 `;
                 return;
             }
-            
+
             historyContainer.innerHTML = list.map(item => {
                 const formattedDate = new Date(item.checked_in_at).toLocaleString('th-TH', {
                     year: 'numeric',
@@ -1738,7 +1943,7 @@ async function loadStudentActivityData() {
                     </div>
                 `;
             }).join('');
-            
+
         } else {
             historyContainer.innerHTML = `<div class="text-center text-muted" style="padding: 3rem 1rem;">โหลดข้อมูลล้มเหลว: ${result.message}</div>`;
         }

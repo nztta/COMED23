@@ -1,0 +1,22 @@
+{
+  "short_name": "COMED23",
+  "name": "COMED23 Finance Portal",
+  "description": "Student Payment Verification and Transparency Portal",
+  "icons": [
+    {
+      "src": "logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "start_url": "index.html",
+  "background_color": "#050811",
+  "theme_color": "#ea580c",
+  "display": "standalone",
+  "orientation": "portrait"
+}

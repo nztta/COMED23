@@ -7,6 +7,18 @@
     <meta name="description" content="Finance Management Portal and Auditing Screen">
     <title>COMED23</title>
     <link rel="icon" type="image/png" href="logo.png">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ea580c">
+    <link rel="apple-touch-icon" href="logo.png">
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then(reg => console.log('Service Worker registered successfully:', reg.scope))
+                    .catch(err => console.error('Service Worker registration failed:', err));
+            });
+        }
+    </script>
     <script>
         // Apply theme immediately to prevent FOUC (flash of unstyled content)
         (function () {
@@ -99,7 +111,7 @@
         /* Settings Grid config cards */
         .settings-card-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
             gap: 1.5rem;
             margin-top: 1.5rem;
         }
@@ -215,6 +227,154 @@
         .report-desc {
             font-size: 0.85rem;
             color: var(--text-secondary);
+        }
+
+        /* Modern Switch / Toggle style */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+            flex-shrink: 0;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.05);
+            transition: .3s;
+            border-radius: 24px;
+            border: 1px solid var(--border-glass);
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background-color: #fff;
+            transition: .3s;
+            border-radius: 50%;
+            box-sizing: border-box;
+            box-shadow: var(--shadow-sm);
+        }
+
+        input:checked + .slider {
+            background: var(--accent-gradient);
+            border-color: transparent;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+
+        /* Form styling enhancements */
+        .admin-setting-card {
+            border: 1px solid var(--border-glass) !important;
+            border-top: none !important;
+            border-radius: var(--border-radius-md) !important;
+            background: var(--bg-glass) !important;
+            box-shadow: var(--shadow-glass) !important;
+            overflow: hidden;
+            position: relative;
+            transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+        }
+        
+        .admin-setting-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: var(--accent-gradient);
+            z-index: 10;
+        }
+
+        .admin-setting-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-glass-hover) !important;
+        }
+
+        .input-with-icon {
+            position: relative;
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+
+        .input-with-icon i.field-icon {
+            position: absolute;
+            left: 1rem;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            pointer-events: none;
+            transition: color var(--transition-fast);
+            z-index: 5;
+        }
+
+        .input-with-icon .form-control {
+            padding-left: 2.5rem;
+            padding-right: 2.5rem;
+            width: 100%;
+            height: 44px;
+            border-radius: var(--border-radius-sm);
+            border: 1px solid var(--border-glass);
+            background-color: var(--form-input-bg) !important;
+            color: var(--form-input-text-color) !important;
+            transition: all var(--transition-fast);
+        }
+
+        .input-with-icon .form-control:focus {
+            border-color: var(--accent) !important;
+            box-shadow: 0 0 0 3px rgba(240, 98, 146, 0.15) !important;
+            background-color: var(--bg-glass-hover) !important;
+        }
+
+        .input-with-icon .form-control:focus ~ i.field-icon {
+            color: var(--accent-light);
+        }
+
+        /* Password visibility toggle in form */
+        .toggle-password-btn {
+            position: absolute;
+            right: 0.85rem;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            transition: color var(--transition-fast);
+            z-index: 5;
+            height: 100%;
+            width: 30px;
+        }
+
+        .toggle-password-btn:hover {
+            color: var(--text-primary);
+        }
+
+        #policy-text-input:focus {
+            border-color: var(--accent) !important;
+            box-shadow: 0 0 0 3px rgba(240, 98, 146, 0.15) !important;
+            background-color: var(--bg-glass-hover) !important;
+            outline: none;
         }
     </style>
 </head>
@@ -337,10 +497,10 @@
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
                             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                             class="sidebar-icon">
-                            <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
-                            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                            <circle cx="12" cy="12" r="3" />
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
                         </svg>
-                        <span>เปลี่ยนรหัสผ่าน</span>
+                        <span>ตั้งค่าระบบ</span>
                     </a>
                 </li>
             </ul>
@@ -807,54 +967,85 @@
             </section>
 
             <!-- -----------------------------------------------------------------
-                 TAB 8: ADMIN SECURITY / PASSWORD SETTINGS
+                 TAB 8: ADMIN SETTINGS (PASSWORD & POLICY)
                  ----------------------------------------------------------------- -->
             <section id="admin-settings-panel" class="view-panel hidden">
-                <div class="card"
-                    style="max-width: 500px; margin: 2rem auto; padding: 2rem; border-top: 4px solid var(--accent) !important;">
-                    <div style="text-align: center; margin-bottom: 2rem;">
-                        <i class="fas fa-lock"
-                            style="font-size: 2.5rem; color: var(--accent); margin-bottom: 1rem;"></i>
-                        <h2
-                            style="font-family: var(--font-heading); margin-bottom: 0.5rem; color: var(--text-primary);">
-                            เปลี่ยนรหัสผ่านผู้ดูแลระบบ</h2>
-                        <p style="font-size: 0.9rem; color: var(--text-secondary);">
-                            เพื่อความปลอดภัยในการดูแลระบบจัดการเงิน</p>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 1.5rem; max-width: 1000px; margin: 1.5rem auto; padding: 0 1rem;">
+                    
+                    <!-- Card 1: Change Password -->
+                    <div class="card admin-setting-card" style="padding: 2rem;">
+                        <div style="text-align: center; margin-bottom: 1.5rem;">
+                            <i class="fas fa-user-shield" style="font-size: 2.2rem; color: var(--accent-light); margin-bottom: 0.75rem; filter: drop-shadow(0 2px 8px rgba(240, 98, 146, 0.3));"></i>
+                            <h2 style="font-family: var(--font-heading); margin-bottom: 0.25rem; color: var(--text-primary); font-size: 1.25rem;">เปลี่ยนรหัสผ่านผู้ดูแลระบบ</h2>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary);">เพื่อความปลอดภัยในการดูแลระบบจัดการเงิน</p>
+                        </div>
+                        <form id="admin-change-password-form">
+                            <div class="form-group" style="margin-bottom: 1.25rem;">
+                                <label for="admin-current-password" style="color: var(--form-label-color); font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 0.5rem;">รหัสผ่านปัจจุบัน</label>
+                                <div class="input-with-icon">
+                                    <i class="fas fa-unlock-alt field-icon"></i>
+                                    <input type="password" id="admin-current-password" class="form-control" placeholder="ระบุรหัสผ่านเดิม" required>
+                                    <button type="button" class="toggle-password-btn" onclick="togglePasswordVisibility('admin-current-password', this)">
+                                        <i class="far fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 1.25rem;">
+                                <label for="admin-new-password" style="color: var(--form-label-color); font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 0.5rem;">รหัสผ่านใหม่</label>
+                                <div class="input-with-icon">
+                                    <i class="fas fa-key field-icon"></i>
+                                    <input type="password" id="admin-new-password" class="form-control" placeholder="รหัสผ่านใหม่ (อย่างน้อย 6 ตัวอักษร)" minlength="6" required>
+                                    <button type="button" class="toggle-password-btn" onclick="togglePasswordVisibility('admin-new-password', this)">
+                                        <i class="far fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 1.75rem;">
+                                <label for="admin-confirm-password" style="color: var(--form-label-color); font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 0.5rem;">ยืนยันรหัสผ่านใหม่</label>
+                                <div class="input-with-icon">
+                                    <i class="fas fa-check-double field-icon"></i>
+                                    <input type="password" id="admin-confirm-password" class="form-control" placeholder="ระบุรหัสผ่านใหม่อีกครั้ง" minlength="6" required>
+                                    <button type="button" class="toggle-password-btn" onclick="togglePasswordVisibility('admin-confirm-password', this)">
+                                        <i class="far fa-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; font-family: var(--font-heading); padding: 0.75rem; background: var(--accent-gradient); border: none; box-shadow: 0 4px 12px rgba(240, 98, 146, 0.25); transition: all 0.2s;">
+                                <i class="fas fa-key" style="margin-right: 0.5rem;"></i> บันทึกรหัสผ่านใหม่
+                            </button>
+                        </form>
                     </div>
 
-                    <form id="admin-change-password-form">
-                        <div class="form-group" style="margin-bottom: 1.25rem;">
-                            <label for="admin-current-password"
-                                style="color: var(--form-label-color); font-weight: 600;">รหัสผ่านปัจจุบัน</label>
-                            <input type="password" id="admin-current-password" class="form-control"
-                                placeholder="ระบุรหัสผ่านเดิม"
-                                style="background-color: var(--form-input-bg); color: var(--form-input-text-color); border-color: var(--form-input-border-color);"
-                                required>
+                    <!-- Card 2: Policy Settings -->
+                    <div class="card admin-setting-card" style="padding: 2rem;">
+                        <div style="text-align: center; margin-bottom: 1.5rem;">
+                            <i class="fas fa-file-signature" style="font-size: 2.2rem; color: var(--accent-light); margin-bottom: 0.75rem; filter: drop-shadow(0 2px 8px rgba(240, 98, 146, 0.3));"></i>
+                            <h2 style="font-family: var(--font-heading); margin-bottom: 0.25rem; color: var(--text-primary); font-size: 1.25rem;">ข้อตกลงและนโยบายการชำระเงิน</h2>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary);">เปิดกล่องยอมรับเงื่อนไขและใส่ข้อความให้สอดคล้องกับระเบียบ</p>
                         </div>
+                        <form id="admin-policy-form">
+                            <div class="form-group" style="margin-bottom: 1.25rem;">
+                                <div style="display: flex; align-items: center; justify-content: space-between; background: var(--bg-secondary); padding: 0.75rem 1rem; border-radius: var(--border-radius-sm); border: 1px solid var(--border-glass);">
+                                    <label for="policy-enabled-toggle" style="color: var(--form-label-color); font-weight: 600; cursor: pointer; margin: 0; font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem;">
+                                        <i class="fas fa-shield-alt" style="color: var(--accent-light); font-size: 1rem;"></i>
+                                        <span>เปิดใช้งานนโยบายชำระเงิน (บังคับกดยอมรับ)</span>
+                                    </label>
+                                    <label class="switch">
+                                        <input type="checkbox" id="policy-enabled-toggle">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 1.75rem;">
+                                <label for="policy-text-input" style="color: var(--form-label-color); font-weight: 600; display: block; margin-bottom: 0.5rem; font-size: 0.85rem;">ข้อความนโยบายที่จะแสดงให้นักศึกษาติ๊กเลือก</label>
+                                <textarea id="policy-text-input" class="form-control" rows="5" placeholder="เช่น ฉันรับรองว่าข้อมูลการโอนเงินและสลิปนี้ถูกต้อง..." style="background-color: var(--form-input-bg); color: var(--form-input-text-color); border-color: var(--form-input-border-color); resize: vertical; width: 100%; padding: 0.75rem; font-family: var(--font-body); font-size: 0.85rem; border-radius: var(--border-radius-sm); border: 1px solid var(--border-glass); transition: all var(--transition-fast);" required></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; font-family: var(--font-heading); padding: 0.75rem; background: var(--accent-gradient); border: none; box-shadow: 0 4px 12px rgba(240, 98, 146, 0.25); transition: all 0.2s;">
+                                <i class="fas fa-save" style="margin-right: 0.5rem;"></i> บันทึกข้อกำหนดนโยบาย
+                            </button>
+                        </form>
+                    </div>
 
-                        <div class="form-group" style="margin-bottom: 1.25rem;">
-                            <label for="admin-new-password"
-                                style="color: var(--form-label-color); font-weight: 600;">รหัสผ่านใหม่</label>
-                            <input type="password" id="admin-new-password" class="form-control"
-                                placeholder="รหัสผ่านใหม่ (อย่างน้อย 6 ตัวอักษร)" minlength="6"
-                                style="background-color: var(--form-input-bg); color: var(--form-input-text-color); border-color: var(--form-input-border-color);"
-                                required>
-                        </div>
-
-                        <div class="form-group" style="margin-bottom: 2rem;">
-                            <label for="admin-confirm-password"
-                                style="color: var(--form-label-color); font-weight: 600;">ยืนยันรหัสผ่านใหม่</label>
-                            <input type="password" id="admin-confirm-password" class="form-control"
-                                placeholder="ระบุรหัสผ่านใหม่อีกครั้ง" minlength="6"
-                                style="background-color: var(--form-input-bg); color: var(--form-input-text-color); border-color: var(--form-input-border-color);"
-                                required>
-                        </div>
-
-                        <button type="submit" class="btn btn-primary"
-                            style="width: 100%; justify-content: center; font-family: var(--font-heading);">
-                            <i class="fas fa-key" style="margin-right: 0.5rem;"></i> บันทึกรหัสผ่านใหม่
-                        </button>
-                    </form>
                 </div>
             </section>
 
@@ -1017,13 +1208,20 @@
                         </div>
                     </div>
 
-                    <!-- Scrollable custom student selector checklist -->
+                    <!-- Scrollable custom student selector autocomplete list -->
                     <div id="custom-targets-container" class="hidden" style="margin-bottom: 1rem;">
-                        <label
-                            style="font-weight: 700; font-size: 0.85rem; margin-bottom: 0.5rem; display: block;">เลือกรายชื่อนักศึกษาเป้าหมาย:</label>
-                        <div id="custom-members-checkboxes"
-                            style="max-height: 140px; overflow-y: auto; border: 1px solid var(--border-glass); border-radius: var(--border-radius-sm); padding: 0.5rem; background: var(--bg-secondary); display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
-                            <!-- Populated by JS -->
+                        <label style="font-weight: 700; font-size: 0.85rem; margin-bottom: 0.5rem; display: block;">ระบุสมาชิกที่จะเรียกเก็บเงิน (ค้นหาจากชื่อเล่น ชื่อจริง หรือรหัสประจำตัว):</label>
+                        <div style="position: relative; margin-bottom: 0.75rem;">
+                            <input type="text" id="target-search-input" class="form-control" placeholder="พิมพ์เพื่อค้นหา..." style="width: 100%;">
+                            <div id="target-autocomplete-list" class="hidden" 
+                                 style="position: absolute; border: 1px solid var(--border-glass); background: var(--modal-bg); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); z-index: 1000; top: 100%; left: 0; right: 0; max-height: 200px; overflow-y: auto; border-radius: var(--border-radius-sm); box-shadow: var(--shadow-glass); display: flex; flex-direction: column;">
+                                <!-- suggestions populated here -->
+                            </div>
+                        </div>
+                        <label style="font-weight: 700; font-size: 0.85rem; margin-bottom: 0.5rem; display: block;">รายชื่อสมาชิกที่เลือกการเรียกเก็บเงิน:</label>
+                        <div id="selected-targets-cards-container" 
+                             style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.5rem; max-height: 160px; overflow-y: auto; border: 1px solid var(--border-glass); border-radius: var(--border-radius-sm); padding: 0.5rem; background: var(--bg-secondary);">
+                            <!-- Selected student cards render here -->
                         </div>
                     </div>
 
@@ -1039,12 +1237,12 @@
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                         <div class="form-group">
-                            <label for="setting-fee">อัตราจัดเก็บรายสัปดาห์ (บาท/สัปดาห์)</label>
+                            <label for="setting-fee">ยอดเงินเรียกเก็บ (บาท)</label>
                             <input type="number" id="setting-fee" class="form-control" min="0" step="0.01" required>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group" style="display: none !important;">
                             <label for="setting-weeks">จำนวนสัปดาห์ในเดือนนี้ (1-5)</label>
-                            <input type="number" id="setting-weeks" class="form-control" min="1" max="5" required>
+                            <input type="number" id="setting-weeks" class="form-control" min="1" max="5" value="1" required>
                         </div>
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr; gap: 1rem;">
@@ -1240,6 +1438,21 @@
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <!-- Dashboard Controller -->
     <script src="js/dashboard.js" defer></script>
+    <script>
+        function togglePasswordVisibility(inputId, btn) {
+            const input = document.getElementById(inputId);
+            const icon = btn.querySelector('i');
+            if (input && icon) {
+                if (input.type === 'password') {
+                    input.type = 'text';
+                    icon.className = 'far fa-eye-slash';
+                } else {
+                    input.type = 'password';
+                    icon.className = 'far fa-eye';
+                }
+            }
+        }
+    </script>
 </body>
 
 </html>

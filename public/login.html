@@ -7,6 +7,18 @@
     <meta name="description" content="Finance Portal Administrative Authentication Login">
     <title>COMED23</title>
     <link rel="icon" type="image/png" href="logo.png">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ea580c">
+    <link rel="apple-touch-icon" href="logo.png">
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then(reg => console.log('Service Worker registered successfully:', reg.scope))
+                    .catch(err => console.error('Service Worker registration failed:', err));
+            });
+        }
+    </script>
 
     <link rel="stylesheet" href="css/variables.css">
     <link rel="stylesheet" href="css/dashboard.css">
@@ -78,6 +90,7 @@
         <div class="login-card">
 
             <div class="login-header">
+                <img src="logo.png" alt="COMED23 Logo" style="max-height: 80px; width: auto; display: block; margin: 0 auto 1rem auto;">
                 <h1 style="font-family: var(--font-heading);">COMED23</h1>
                 <p>เข้าสู่ระบบจัดการการเงินและตรวจสอบบัญชี</p>
             </div>
@@ -123,7 +136,7 @@
 
             alertBox.style.display = 'none';
             submitBtn.disabled = true;
-            submitBtn.textContent = 'กำลังตรวจสอบสิทธิ์...';
+            submitBtn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> กำลังตรวจสอบสิทธิ์...';
 
             try {
                 // Call Auth JS Helper signIn
@@ -138,13 +151,13 @@
                     alertBox.textContent = 'พบบัญชีผู้ใช้ในระบบหลักของโครงการ แต่ยังไม่ได้ลงทะเบียนสิทธิ์ในฐานข้อมูลการเงิน';
                     alertBox.style.display = 'block';
                     submitBtn.disabled = false;
-                    submitBtn.textContent = 'ยืนยันตัวตนเข้าระบบ';
+                    submitBtn.innerHTML = 'ยืนยันตัวตนเข้าระบบ';
                 }
             } catch (error) {
                 alertBox.textContent = error.message || 'รหัสผ่านผิดพลาด หรือชื่ออีเมลไม่มีสิทธิ์ในระบบนี้';
                 alertBox.style.display = 'block';
                 submitBtn.disabled = false;
-                submitBtn.textContent = 'ยืนยันตัวตนเข้าระบบ';
+                submitBtn.innerHTML = 'ยืนยันตัวตนเข้าระบบ';
             }
         });
 

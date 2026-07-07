@@ -36,6 +36,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 6. Setup Change Password Form
     setupChangePasswordForm();
+
+    // 7. Setup Autocomplete Targeted Billing Selection
+    setupAutocomplete();
+
+    // 8. Setup System Policy Form
+    setupPolicyForm();
 });
 
 function updateProfileUI() {
@@ -230,6 +236,7 @@ async function switchTab(tabId) {
             initActivitiesScanner();
             break;
         case 'admin-settings':
+            loadSystemSettings();
             break;
     }
 }
@@ -719,7 +726,11 @@ async function loadMonthSettings() {
     }
 
     if (!hasRenderedCache) {
-        grid.innerHTML = '<div class="skeleton" style="height: 200px; width: 100%;"></div>';
+        grid.innerHTML = `
+            <div class="shimmer-loader" style="height: 240px; border-radius: var(--border-radius-md);"></div>
+            <div class="shimmer-loader" style="height: 240px; border-radius: var(--border-radius-md);"></div>
+            <div class="shimmer-loader" style="height: 240px; border-radius: var(--border-radius-md);"></div>
+        `;
     }
 
     try {
@@ -764,15 +775,23 @@ function renderSettingsGrid(settings) {
     settings.forEach(s => {
         const card = document.createElement('div');
         card.className = `card setting-card status-${s.status.toLowerCase()}`;
-        card.style.width = '500px';
+
+        const displayTitle = s.title || `${monthNames[s.month - 1]} ${s.year}`;
+        const subtitleHtml = s.title ? `<div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;">รอบบิลเดือน ${monthNames[s.month - 1]} ${s.year}</div>` : '';
+        const weeksHtml = s.number_of_weeks > 1 ? `<div class="setting-item"><strong>จำนวนสัปดาห์เก็บเงิน:</strong> ${s.number_of_weeks} สัปดาห์</div>` : '';
+        const amountLabel = s.number_of_weeks > 1 ? 'ค่าบำรุงรายสัปดาห์:' : 'ยอดเงินเรียกเก็บ:';
+
         card.innerHTML = `
-            <div class="setting-card-header" >
-                <h3>${monthNames[s.month - 1]} ${s.year}</h3>
-                <span class="badge badge-${s.status === 'Open' ? 'green' : (s.status === 'Closed' ? 'yellow' : 'gray')}">${statusTranslations[s.status] || s.status}</span>
+            <div class="setting-card-header" style="flex-direction: column; align-items: flex-start; gap: 0.25rem;">
+                <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                    <h3 style="margin: 0; font-size: 1.1rem;">${displayTitle}</h3>
+                    <span class="badge badge-${s.status === 'Open' ? 'green' : (s.status === 'Closed' ? 'yellow' : 'gray')}">${statusTranslations[s.status] || s.status}</span>
+                </div>
+                ${subtitleHtml}
             </div>
-            <div class=" setting-card-body">
-                <div class="setting-item"><strong>ค่าบำรุงรายสัปดาห์:</strong> ${s.weekly_fee} บาท</div>
-                <div class="setting-item"><strong>จำนวนสัปดาห์เก็บเงิน:</strong> ${s.number_of_weeks} สัปดาห์</div>
+            <div class="setting-card-body">
+                <div class="setting-item"><strong>${amountLabel}</strong> ${s.weekly_fee} บาท</div>
+                ${weeksHtml}
                 <div class="setting-item"><strong>วันที่เปิดระบบ:</strong> ${s.open_date}</div>
                 <div class="setting-item"><strong>วันที่ปิดระบบ:</strong> ${s.close_date}</div>
             </div>
@@ -840,7 +859,7 @@ if (addSettingBtn) {
         const today = new Date();
         document.getElementById('setting-month').value = today.getMonth() + 1;
         document.getElementById('setting-year').value = today.getFullYear();
-        document.getElementById('setting-weeks').value = 4;
+        document.getElementById('setting-weeks').value = 1;
 
         recalculateAutoDates();
         settingModal.classList.add('active');
@@ -854,34 +873,60 @@ if (targetsSelect) {
     targetsSelect.addEventListener('change', (e) => {
         if (e.target.value === 'custom') {
             customTargetsContainer.classList.remove('hidden');
-            renderCustomMembersCheckboxes();
+            renderSelectedTargetsCards();
         } else {
             customTargetsContainer.classList.add('hidden');
         }
     });
 }
 
-function renderCustomMembersCheckboxes(selectedIds = []) {
-    const container = document.getElementById('custom-members-checkboxes');
+let selectedCustomMemberIds = [];
+
+function renderSelectedTargetsCards() {
+    const container = document.getElementById('selected-targets-cards-container');
     if (!container) return;
     container.innerHTML = '';
 
-    studentList.forEach(s => {
-        const isChecked = selectedIds.includes(s.id);
-        const label = document.createElement('label');
-        label.style.display = 'flex';
-        label.style.alignItems = 'center';
-        label.style.gap = '0.5rem';
-        label.style.fontSize = '0.8rem';
-        label.style.cursor = 'pointer';
-        label.style.color = 'var(--text-primary)';
+    if (selectedCustomMemberIds.length === 0) {
+        container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 1.5rem; font-size: 0.8rem;"><i class="fas fa-info-circle"></i> ยังไม่ได้เลือกสมาชิก</div>';
+        return;
+    }
 
-        label.innerHTML = `
-            <input type="checkbox" value="${s.id}" class="custom-member-chk" ${isChecked ? 'checked' : ''}>
-            <span>${s.student_id} - ${s.full_name} (${s.nickname || ''})</span>
+    selectedCustomMemberIds.forEach(id => {
+        const s = studentList.find(item => item.id === id);
+        if (!s) return;
+
+        const card = document.createElement('div');
+        card.className = 'selected-target-card';
+        card.style.cssText = 'background: var(--bg-secondary); border: 1px solid var(--border-glass); border-radius: var(--border-radius-sm); padding: 0.4rem 0.6rem; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; box-shadow: var(--shadow-sm);';
+        
+        card.innerHTML = `
+            <div style="display: flex; flex-direction: column; overflow: hidden; gap: 0.1rem; flex: 1;">
+                <span style="font-weight: 700; font-size: 0.8rem; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${s.nickname || '-'}</span>
+                <span style="font-size: 0.75rem; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500;">${s.full_name}</span>
+                <span style="font-size: 0.68rem; color: var(--text-secondary); font-family: monospace;">${s.student_id}</span>
+            </div>
+            <button type="button" style="background: transparent; border: none; color: var(--status-red-text); cursor: pointer; padding: 0.2rem; font-size: 0.95rem; display: flex; align-items: center; transition: transform 0.15s;" onclick="removeTargetMember('${s.id}')">
+                <i class="fas fa-times-circle"></i>
+            </button>
         `;
-        container.appendChild(label);
+
+        const removeBtn = card.querySelector('button');
+        removeBtn.addEventListener('mouseenter', () => removeBtn.style.transform = 'scale(1.15)');
+        removeBtn.addEventListener('mouseleave', () => removeBtn.style.transform = 'scale(1)');
+
+        container.appendChild(card);
     });
+}
+
+window.removeTargetMember = function(studentId) {
+    selectedCustomMemberIds = selectedCustomMemberIds.filter(id => id !== studentId);
+    renderSelectedTargetsCards();
+};
+
+function renderCustomMembersCheckboxes(selectedIds = []) {
+    selectedCustomMemberIds = [...selectedIds];
+    renderSelectedTargetsCards();
 }
 
 function recalculateAutoDates() {
@@ -957,10 +1002,12 @@ function generateDueDatesFields(numWeeks, existingDates = []) {
         div.className = 'form-group';
 
         const dateVal = existingDates[w - 1] || '';
+        const label = numWeeks === 1 ? 'วันครบกำหนดชำระเงิน' : `วันครบกำหนดชำระ สัปดาห์ที่ ${w} (คำนวณอัตโนมัติ)`;
+        const readonlyAttr = numWeeks === 1 ? '' : 'readonly';
 
         div.innerHTML = `
-            <label>วันครบกำหนดชำระ สัปดาห์ที่ ${w} (คำนวณอัตโนมัติ)</label>
-            <input type="date" class="form-control due-date-input" value="${dateVal}" readonly required>
+            <label>${label}</label>
+            <input type="date" class="form-control due-date-input" value="${dateVal}" ${readonlyAttr} required>
         `;
         dueDatesContainer.appendChild(div);
     }
@@ -1015,13 +1062,10 @@ if (settingForm) {
             dueDates.push(input.value);
         });
 
-        // Compile custom members checklist
+        // Compile custom members autocomplete selections
         let customMembers = null;
         if (document.getElementById('setting-targets-select').value === 'custom') {
-            customMembers = [];
-            document.querySelectorAll('.custom-member-chk:checked').forEach(chk => {
-                customMembers.push(chk.value);
-            });
+            customMembers = selectedCustomMemberIds;
         }
 
         const payload = {
@@ -2700,6 +2744,153 @@ function setupChangePasswordForm() {
         } catch (error) {
             console.error(error);
             showToast('เกิดข้อผิดพลาดไม่คาดคิดในระบบ', 'error');
+        } finally {
+            Loading.hide();
+        }
+    });
+}
+
+function setupAutocomplete() {
+    const searchInput = document.getElementById('target-search-input');
+    const suggestionsList = document.getElementById('target-autocomplete-list');
+    if (!searchInput || !suggestionsList) return;
+
+    // Handle search input events
+    searchInput.addEventListener('input', () => {
+        const query = searchInput.value.trim().toLowerCase();
+        if (!query) {
+            suggestionsList.innerHTML = '';
+            suggestionsList.classList.add('hidden');
+            return;
+        }
+
+        // Filter student list
+        const matches = studentList.filter(s => {
+            const idMatch = s.student_id && s.student_id.toLowerCase().includes(query);
+            const nameMatch = s.full_name && s.full_name.toLowerCase().includes(query);
+            const nickMatch = s.nickname && s.nickname.toLowerCase().includes(query);
+            
+            // Not already selected
+            const isNotSelected = !selectedCustomMemberIds.includes(s.id);
+            
+            return (idMatch || nameMatch || nickMatch) && isNotSelected;
+        });
+
+        // Render suggestions list
+        suggestionsList.innerHTML = '';
+        if (matches.length === 0) {
+            const emptyEl = document.createElement('div');
+            emptyEl.style.cssText = 'padding: 0.6rem 0.8rem; font-size: 0.8rem; color: var(--text-muted); text-align: center;';
+            emptyEl.innerHTML = '<i class="fas fa-info-circle"></i> ไม่พบรายชื่อนักศึกษา';
+            suggestionsList.appendChild(emptyEl);
+        } else {
+            matches.slice(0, 10).forEach(s => {
+                const sugg = document.createElement('div');
+                sugg.style.cssText = 'padding: 0.5rem 0.8rem; cursor: pointer; border-bottom: 1px solid var(--border-glass); display: flex; flex-direction: column; gap: 0.1rem; font-size: 0.8rem; color: var(--text-primary); transition: background 0.15s; background: transparent;';
+                sugg.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="font-weight: 700; color: var(--accent);">${s.nickname || '-'}</span>
+                        <span style="font-size: 0.72rem; color: var(--text-secondary); font-family: monospace;">${s.student_id}</span>
+                    </div>
+                    <span style="font-size: 0.75rem; color: var(--text-primary); font-weight: 500;">${s.full_name}</span>
+                `;
+
+                sugg.addEventListener('mouseenter', () => sugg.style.background = 'var(--bg-glass-hover)');
+                sugg.addEventListener('mouseleave', () => sugg.style.background = 'transparent');
+                
+                sugg.addEventListener('click', () => {
+                    selectedCustomMemberIds.push(s.id);
+                    searchInput.value = '';
+                    suggestionsList.innerHTML = '';
+                    suggestionsList.classList.add('hidden');
+                    renderSelectedTargetsCards();
+                });
+
+                suggestionsList.appendChild(sugg);
+            });
+        }
+        suggestionsList.classList.remove('hidden');
+    });
+
+    // Close recommendations list on document click
+    document.addEventListener('click', (e) => {
+        if (e.target !== searchInput && e.target !== suggestionsList && !suggestionsList.contains(e.target)) {
+            suggestionsList.classList.add('hidden');
+        }
+    });
+
+    // Toggle container on dropdown change
+    const selectEl = document.getElementById('setting-targets-select');
+    if (selectEl) {
+        selectEl.addEventListener('change', (e) => {
+            const customTargetsContainer = document.getElementById('custom-targets-container');
+            if (customTargetsContainer) {
+                if (e.target.value === 'custom') {
+                    customTargetsContainer.classList.remove('hidden');
+                    renderSelectedTargetsCards();
+                } else {
+                    customTargetsContainer.classList.add('hidden');
+                }
+            }
+        });
+    }
+}
+
+async function loadSystemSettings() {
+    try {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/settings.php?action=get_system_settings`, {
+            headers: getAuthHeaders()
+        });
+        const result = await response.json();
+        if (result.status === 'success') {
+            const toggle = document.getElementById('policy-enabled-toggle');
+            const input = document.getElementById('policy-text-input');
+            if (toggle) toggle.checked = (result.data.payment_policy_enabled === 'true');
+            if (input) input.value = result.data.payment_policy_text || '';
+        }
+    } catch (e) {
+        console.error(e);
+        showToast('ไม่สามารถดึงค่านโยบายระบบได้', 'error');
+    }
+}
+
+function setupPolicyForm() {
+    const form = document.getElementById('admin-policy-form');
+    if (!form) return;
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const toggle = document.getElementById('policy-enabled-toggle');
+        const input = document.getElementById('policy-text-input');
+        
+        const payload = {
+            payment_policy_enabled: toggle ? toggle.checked.toString() : 'false',
+            payment_policy_text: input ? input.value.trim() : ''
+        };
+
+        const conf = await showConfirm(
+            'ยืนยันการตั้งค่านโยบาย',
+            'คุณต้องการบันทึกการตั้งค่านโยบายและข้อตกลงการชำระเงินใหม่ใช่หรือไม่?'
+        );
+        if (!conf) return;
+
+        Loading.show('กำลังบันทึกตั้งค่านโยบาย...');
+        try {
+            const response = await fetch(`${CONFIG.API_BASE_URL}/settings.php?action=save_system_settings`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json();
+            if (result.status === 'success') {
+                showToast('บันทึกการตั้งค่านโยบายเรียบร้อยแล้ว!', 'success');
+            } else {
+                showToast('บันทึกไม่สำเร็จ: ' + result.message, 'error');
+            }
+        } catch (err) {
+            console.error(err);
+            showToast('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์', 'error');
         } finally {
             Loading.hide();
         }
