@@ -1987,6 +1987,15 @@ function startActivitiesScanner() {
 
     const config = { fps: 10, qrbox: { width: 250, height: 250 } };
 
+    const readerEl = document.getElementById('qr-reader');
+    if (readerEl) {
+        if (scannerFacingMode === 'user') {
+            readerEl.classList.add('mirror-mode');
+        } else {
+            readerEl.classList.remove('mirror-mode');
+        }
+    }
+
     html5QrcodeScanner.start(
         { facingMode: scannerFacingMode },
         config,
@@ -2051,6 +2060,15 @@ async function flipActivitiesScanner() {
                 }
             }, 2500);
         };
+
+        const readerEl = document.getElementById('qr-reader');
+        if (readerEl) {
+            if (scannerFacingMode === 'user') {
+                readerEl.classList.add('mirror-mode');
+            } else {
+                readerEl.classList.remove('mirror-mode');
+            }
+        }
 
         await html5QrcodeScanner.start(
             { facingMode: scannerFacingMode },
