@@ -296,7 +296,29 @@ if ($method === 'GET' && isset($_GET['action']) && $_GET['action'] === 'student_
             ];
         }
 
-        sendSuccess($resultMonths);
+        // Fetch total adjustments (e.g. cash, bulk credit) from payment_transactions for this student
+        $adjustmentStmt = $db->prepare("
+            SELECT COALESCE(SUM(amount), 0) as total_adjustments
+            FROM payment_transactions
+            WHERE student_id = :student_id AND transaction_type = 'Adjustment' AND is_deleted = false
+        ");
+        $adjustmentStmt->execute(['student_id' => $studentId]);
+        $adjustments = (float)$adjustmentStmt->fetchColumn();
+
+        // Fetch total refunds
+        $refundStmt = $db->prepare("
+            SELECT COALESCE(SUM(amount), 0) as total_refunds
+            FROM payment_transactions
+            WHERE student_id = :student_id AND transaction_type = 'Refund' AND is_deleted = false
+        ");
+        $refundStmt->execute(['student_id' => $studentId]);
+        $refunds = (float)$refundStmt->fetchColumn();
+
+        sendSuccess([
+            'months' => $resultMonths,
+            'adjustments' => $adjustments,
+            'refunds' => $refunds
+        ]);
     } catch (Exception $e) {
         sendError('Failed to fetch status: ' . $e->getMessage(), 500);
     }

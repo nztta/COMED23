@@ -17,6 +17,8 @@ function parseJwt(token) {
 // State variables for student session
 let currentStudent = null;
 let monthlyStatusData = [];
+let currentStudentAdjustments = 0;
+let currentStudentRefunds = 0;
 let selectedMonthSetting = null;
 let selectedWeeks = [];
 let isUpdateMode = false;
@@ -269,7 +271,15 @@ async function loadStudentLedger() {
 
     if (cachedDataStr) {
         try {
-            monthlyStatusData = JSON.parse(cachedDataStr);
+            const cachedData = JSON.parse(cachedDataStr);
+            const dataObj = typeof cachedData === 'object' && !Array.isArray(cachedData) 
+                ? cachedData 
+                : { months: cachedData, adjustments: 0, refunds: 0 };
+            
+            monthlyStatusData = dataObj.months || [];
+            currentStudentAdjustments = parseFloat(dataObj.adjustments) || 0;
+            currentStudentRefunds = parseFloat(dataObj.refunds) || 0;
+
             renderMonthsTabs();
             updateMiniPaymentStats();
             renderFinancialSummaries();
@@ -344,7 +354,14 @@ async function loadStudentLedger() {
 
             // Only re-render if data has changed or if we haven't rendered cache
             if (newDataStr !== cachedDataStr || !hasRenderedCache) {
-                monthlyStatusData = result.data;
+                const dataObj = typeof result.data === 'object' && !Array.isArray(result.data) 
+                    ? result.data 
+                    : { months: result.data, adjustments: 0, refunds: 0 };
+                
+                monthlyStatusData = dataObj.months || [];
+                currentStudentAdjustments = parseFloat(dataObj.adjustments) || 0;
+                currentStudentRefunds = parseFloat(dataObj.refunds) || 0;
+
                 localStorage.setItem(cacheKey, newDataStr);
 
                 renderMonthsTabs();
@@ -618,9 +635,9 @@ function renderFinancialSummaries() {
 
     if (!sumPaid || !sumPending || !sumOutstanding || !sumTotal) return;
 
-    let totalPaid = 0;
+    let totalPaidSlips = 0;
     let totalPending = 0;
-    let totalOutstanding = 0;
+    let totalOutstandingRaw = 0;
     let totalAll = 0;
 
     monthlyStatusData.forEach(month => {
@@ -628,18 +645,27 @@ function renderFinancialSummaries() {
             const amt = parseFloat(w.amount);
             totalAll += amt;
             if (w.status === 'Verified') {
-                totalPaid += amt;
+                totalPaidSlips += amt;
             } else if (w.status === 'Pending') {
                 totalPending += amt;
             } else {
-                totalOutstanding += amt;
+                totalOutstandingRaw += amt;
             }
         });
     });
 
+    const adjustments = typeof currentStudentAdjustments === 'number' ? currentStudentAdjustments : 0;
+    const refunds = typeof currentStudentRefunds === 'number' ? currentStudentRefunds : 0;
+    
+    // Total Paid = Slips Paid + Cash Adjustments - Refunds
+    const totalPaid = totalPaidSlips + adjustments - refunds;
+    
+    // Outstanding balance = Total - Paid - Pending (clamped to 0)
+    const finalOutstanding = Math.max(0, totalAll - totalPaid - totalPending);
+
     sumPaid.textContent = `${totalPaid.toLocaleString('th-TH', { minimumFractionDigits: 2 })} THB`;
     sumPending.textContent = `${totalPending.toLocaleString('th-TH', { minimumFractionDigits: 2 })} THB`;
-    sumOutstanding.textContent = `${totalOutstanding.toLocaleString('th-TH', { minimumFractionDigits: 2 })} THB`;
+    sumOutstanding.textContent = `${finalOutstanding.toLocaleString('th-TH', { minimumFractionDigits: 2 })} THB`;
     sumTotal.textContent = `${totalAll.toLocaleString('th-TH', { minimumFractionDigits: 2 })} THB`;
 }
 
@@ -1749,6 +1775,8 @@ function initTabs() {
 function updateMiniPaymentStats() {
     const miniUnpaidStatus = document.getElementById('mini-unpaid-status');
     const miniUnpaidAmount = document.getElementById('mini-unpaid-amount');
+    const miniPaidWeb = document.getElementById('mini-paid-web');
+    const miniPaidCash = document.getElementById('mini-paid-cash');
 
     // Unhide the card now that we have data
     const paymentStatsBox = document.getElementById('view-payment-details-btn')?.closest('.card');
@@ -1756,21 +1784,41 @@ function updateMiniPaymentStats() {
         paymentStatsBox.style.display = 'block';
     }
 
-    let totalUnpaid = 0;
+    let totalUnpaidRaw = 0;
+    let totalPaidWebRaw = 0;
     monthlyStatusData.forEach(month => {
         month.weeks.forEach(week => {
             if (week.status === 'Unpaid' || week.status === 'Overdue') {
-                totalUnpaid += parseFloat(week.amount);
+                totalUnpaidRaw += parseFloat(week.amount);
+            } else if (week.status === 'Verified') {
+                totalPaidWebRaw += parseFloat(week.amount);
             }
         });
     });
 
+    const adjustments = typeof currentStudentAdjustments === 'number' ? currentStudentAdjustments : 0;
+    const refunds = typeof currentStudentRefunds === 'number' ? currentStudentRefunds : 0;
+    
+    // Net cash/adjustments credits
+    const netCash = adjustments - refunds;
+
+    // Actual unpaid balance considering cash payments
+    const finalUnpaid = Math.max(0, totalUnpaidRaw - netCash);
+
     if (miniUnpaidAmount) {
-        miniUnpaidAmount.textContent = `${totalUnpaid.toFixed(2)} บาท`;
+        miniUnpaidAmount.textContent = `${finalUnpaid.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท`;
+    }
+
+    if (miniPaidWeb) {
+        miniPaidWeb.textContent = `${totalPaidWebRaw.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท`;
+    }
+
+    if (miniPaidCash) {
+        miniPaidCash.textContent = `${adjustments.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท`;
     }
 
     if (miniUnpaidStatus) {
-        if (totalUnpaid > 0) {
+        if (finalUnpaid > 0) {
             miniUnpaidStatus.textContent = 'มียอดค้างชำระ';
             miniUnpaidStatus.className = 'status-badge-red';
         } else {
