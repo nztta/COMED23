@@ -70,7 +70,7 @@ try {
         SELECT 
             pt.id::TEXT AS id,
             CASE 
-                WHEN pt.transaction_type = 'Adjustment' THEN ('ชำระเงินสด/ปรับปรุง: ' || COALESCE(pt.description, ''))::VARCHAR(255)
+                WHEN pt.transaction_type = 'Adjustment' THEN (COALESCE(pt.description, ''))::VARCHAR(255)
                 WHEN pt.transaction_type = 'Refund' THEN ('คืนเงิน: ' || COALESCE(pt.description, ''))::VARCHAR(255)
                 ELSE 'ธุรกรรมอื่นๆ'::VARCHAR(255)
             END AS title,
