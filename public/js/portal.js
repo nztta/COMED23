@@ -1586,7 +1586,8 @@ async function loadAnnouncements() {
     }
 
     try {
-        const response = await fetch(`${CONFIG.API_BASE_URL}/notifications.php?action=my_notifications`);
+        const studentIdParam = currentStudent ? `&student_id=${currentStudent.id}` : '';
+        const response = await fetch(`${CONFIG.API_BASE_URL}/notifications.php?action=my_notifications${studentIdParam}`);
         const result = await response.json();
         if (result.status === 'success') {
             const mappedData = result.data.map(n => ({
@@ -1686,7 +1687,8 @@ async function loadUnreadNotificationsCount() {
     if (!badge) return;
 
     try {
-        const response = await fetch(`${CONFIG.API_BASE_URL}/notifications.php?action=unread_count`);
+        const studentIdParam = currentStudent ? `&student_id=${currentStudent.id}` : '';
+        const response = await fetch(`${CONFIG.API_BASE_URL}/notifications.php?action=unread_count${studentIdParam}`);
         const result = await response.json();
         if (result.status === 'success') {
             const count = result.data.unread_count;

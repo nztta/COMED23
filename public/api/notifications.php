@@ -31,13 +31,15 @@ $userId = !$isStudent && !$isGuest ? $currentUser['id'] : null;
 // GET Actions
 if ($method === 'GET') {
     $action = $_GET['action'] ?? 'my_notifications';
+    $targetStudentId = $_GET['student_id'] ?? null;
 
     try {
         $db = getDatabaseConnection();
 
         if ($action === 'my_notifications') {
-            // Build query based on user type
-            if ($isStudent) {
+            // Build query based on user type or requested student id (for staff viewing student portal)
+            if ($isStudent || ($targetStudentId && !$isGuest)) {
+                $idToQuery = $isStudent ? $studentId : $targetStudentId;
                 $stmt = $db->prepare("
                     SELECT * FROM notifications 
                     WHERE is_deleted = false 
@@ -47,7 +49,7 @@ if ($method === 'GET') {
                     ORDER BY created_at DESC 
                     LIMIT 50
                 ");
-                $stmt->execute(['student_id' => $studentId]);
+                $stmt->execute(['student_id' => $idToQuery]);
             } elseif ($isGuest) {
                 // Guests only see global notifications
                 $stmt = $db->prepare("
@@ -75,7 +77,8 @@ if ($method === 'GET') {
             sendSuccess($notifications);
 
         } elseif ($action === 'unread_count') {
-            if ($isStudent) {
+            if ($isStudent || ($targetStudentId && !$isGuest)) {
+                $idToQuery = $isStudent ? $studentId : $targetStudentId;
                 $stmt = $db->prepare("
                     SELECT COUNT(*) FROM notifications 
                     WHERE is_deleted = false AND is_read = false
@@ -83,7 +86,7 @@ if ($method === 'GET') {
                       AND type IN ('BudgetChange', 'Approval', 'Rejection')
                       AND (student_id = :student_id OR (student_id IS NULL AND user_id IS NULL))
                 ");
-                $stmt->execute(['student_id' => $studentId]);
+                $stmt->execute(['student_id' => $idToQuery]);
             } elseif ($isGuest) {
                 $stmt = $db->prepare("
                     SELECT COUNT(*) FROM notifications 

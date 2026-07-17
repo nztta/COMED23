@@ -471,7 +471,11 @@
         async function loadInboxNotifications() {
             const listContainer = document.getElementById('inbox-list');
             try {
-                const response = await fetch(`${CONFIG.API_BASE_URL}/notifications.php?action=my_notifications`, {
+                const studentSession = localStorage.getItem('student_session');
+                const student = studentSession ? JSON.parse(studentSession) : null;
+                const studentIdParam = student ? `&student_id=${student.id}` : '';
+
+                const response = await fetch(`${CONFIG.API_BASE_URL}/notifications.php?action=my_notifications${studentIdParam}`, {
                     headers: getAuthHeaders()
                 });
                 const result = await response.json();
