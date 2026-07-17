@@ -3313,6 +3313,135 @@ function setupBulkAdjustPaymentForm() {
     const form = document.getElementById('bulk-adjust-payment-form');
     if (!form) return;
 
+    const excludeSearch = document.getElementById('bulk-exclude-search');
+    const excludeSuggestions = document.getElementById('bulk-exclude-suggestions');
+    const excludeChipsContainer = document.getElementById('bulk-exclude-chips');
+
+    let excludedStudents = [];
+
+    // Reset exclusions list when modal is opened/closed
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            if (mutation.attributeName === 'class') {
+                const modal = document.getElementById('bulk-adjust-payment-modal');
+                if (modal && !modal.classList.contains('active')) {
+                    // Clear list on close
+                    excludedStudents = [];
+                    renderExcludeChips();
+                    if (excludeSearch) excludeSearch.value = '';
+                    if (excludeSuggestions) excludeSuggestions.style.display = 'none';
+                }
+            }
+        });
+    });
+    const modalEl = document.getElementById('bulk-adjust-payment-modal');
+    if (modalEl) observer.observe(modalEl, { attributes: true });
+
+    // Function to render chips/tags of excluded students
+    function renderExcludeChips() {
+        if (!excludeChipsContainer) return;
+        excludeChipsContainer.innerHTML = '';
+        
+        excludedStudents.forEach((student, index) => {
+            const chip = document.createElement('div');
+            chip.className = 'status-badge status-badge-red';
+            chip.style.display = 'inline-flex';
+            chip.style.alignItems = 'center';
+            chip.style.gap = '0.35rem';
+            chip.style.padding = '0.35rem 0.65rem';
+            chip.style.borderRadius = '20px';
+            chip.style.background = 'rgba(239, 68, 68, 0.15)';
+            chip.style.color = 'var(--status-red-text)';
+            chip.style.fontSize = '0.8rem';
+            chip.style.fontWeight = '600';
+            chip.style.border = '1px solid rgba(239, 68, 68, 0.2)';
+            
+            chip.innerHTML = `
+                <span>${escapeHtml((student.prefix || '') + student.full_name)} (${student.student_id})</span>
+            `;
+            
+            const removeBtn = document.createElement('span');
+            removeBtn.innerHTML = '&times;';
+            removeBtn.style.cursor = 'pointer';
+            removeBtn.style.fontWeight = '800';
+            removeBtn.style.fontSize = '1.05rem';
+            removeBtn.style.marginLeft = '0.2rem';
+            removeBtn.addEventListener('click', () => {
+                excludedStudents.splice(index, 1);
+                renderExcludeChips();
+            });
+            
+            chip.appendChild(removeBtn);
+            excludeChipsContainer.appendChild(chip);
+        });
+    }
+
+    // Autocomplete input listener
+    if (excludeSearch && excludeSuggestions) {
+        excludeSearch.addEventListener('input', (e) => {
+            const query = e.target.value.trim().toLowerCase();
+            if (query.length < 1) {
+                excludeSuggestions.style.display = 'none';
+                return;
+            }
+
+            // Filter studentList from global dashboard state
+            const matches = (studentList || []).filter(s => {
+                if (s.status !== 'Active') return false;
+                
+                // Don't show already excluded students
+                if (excludedStudents.some(ex => ex.id === s.id)) return false;
+
+                const fullName = ((s.prefix || '') + s.full_name).toLowerCase();
+                const studentId = (s.student_id || '').toLowerCase();
+                const nickname = (s.nickname || '').toLowerCase();
+
+                return fullName.includes(query) || studentId.includes(query) || nickname.includes(query);
+            });
+
+            if (matches.length === 0) {
+                excludeSuggestions.innerHTML = '<div style="padding: 0.6rem 0.85rem; color: var(--text-secondary); font-size: 0.85rem;">ไม่พบข้อมูลนักศึกษา</div>';
+            } else {
+                excludeSuggestions.innerHTML = '';
+                matches.slice(0, 8).forEach(s => {
+                    const item = document.createElement('div');
+                    item.style.padding = '0.6rem 0.85rem';
+                    item.style.cursor = 'pointer';
+                    item.style.borderBottom = '1px solid var(--border-glass)';
+                    item.style.fontSize = '0.85rem';
+                    item.style.transition = 'background 0.2s';
+                    item.innerHTML = `<strong>${s.student_id}</strong> - ${escapeHtml((s.prefix || '') + s.full_name)} ${s.nickname ? `(${s.nickname})` : ''}`;
+                    
+                    item.style.color = 'var(--text-primary)';
+                    item.addEventListener('mouseenter', () => {
+                        item.style.background = 'rgba(255, 255, 255, 0.08)';
+                    });
+                    item.addEventListener('mouseleave', () => {
+                        item.style.background = 'transparent';
+                    });
+                    
+                    item.addEventListener('click', () => {
+                        excludedStudents.push(s);
+                        renderExcludeChips();
+                        excludeSearch.value = '';
+                        excludeSuggestions.style.display = 'none';
+                        excludeSearch.focus();
+                    });
+                    
+                    excludeSuggestions.appendChild(item);
+                });
+            }
+            excludeSuggestions.style.display = 'block';
+        });
+
+        // Hide suggestions when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!excludeSuggestions.contains(e.target) && e.target !== excludeSearch) {
+                excludeSuggestions.style.display = 'none';
+            }
+        });
+    }
+
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
 
@@ -3320,14 +3449,16 @@ function setupBulkAdjustPaymentForm() {
         const type = document.getElementById('bulk-adjust-type').value;
         const description = document.getElementById('bulk-adjust-description').value;
 
+        const excludeCount = excludedStudents.length;
         const confirmMsg = type === 'Adjustment' 
-            ? `คุณต้องการเพิ่มเงิน/บันทึกรับเงินสดทุกคน คนละ ${amount.toFixed(2)} บาท ใช่หรือไม่?`
-            : `คุณต้องการถอนเงิน/คืนเงินทุกคน คนละ ${amount.toFixed(2)} บาท ใช่หรือไม่?`;
+            ? `คุณต้องการเพิ่มเงิน/บันทึกรับเงินสดทุกคน คนละ ${amount.toFixed(2)} บาท${excludeCount > 0 ? ` (ยกเว้นนักศึกษา ${excludeCount} คนที่กำหนด)` : ''} ใช่หรือไม่?`
+            : `คุณต้องการถอนเงิน/คืนเงินทุกคน คนละ ${amount.toFixed(2)} บาท${excludeCount > 0 ? ` (ยกเว้นนักศึกษา ${excludeCount} คนที่กำหนด)` : ''} ใช่หรือไม่?`;
             
         if (!confirm(confirmMsg)) return;
 
         Loading.show('กำลังบันทึกรายการปรับปรุงยอดทุกคน...');
         try {
+            const exclude_student_ids = excludedStudents.map(s => s.id);
             const response = await fetch(`${CONFIG.API_BASE_URL}/students.php?action=bulk_adjust_balance`, {
                 method: 'POST',
                 headers: {
@@ -3337,7 +3468,8 @@ function setupBulkAdjustPaymentForm() {
                 body: JSON.stringify({
                     amount,
                     type,
-                    description
+                    description,
+                    exclude_student_ids
                 })
             });
             const result = await response.json();
@@ -3347,6 +3479,10 @@ function setupBulkAdjustPaymentForm() {
                 closeModal('bulk-adjust-payment-modal');
                 form.reset();
                 
+                // Clear state
+                excludedStudents = [];
+                renderExcludeChips();
+
                 // Refresh list if students panel is active
                 if (activeTab === 'students') {
                     loadStudentsList();

@@ -318,6 +318,7 @@ if ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'bulk_ad
     $amount = isset($input['amount']) ? floatval($input['amount']) : 0.0;
     $type = $input['type'] ?? ''; // 'Adjustment' or 'Refund'
     $description = trim($input['description'] ?? '');
+    $excludeStudentIds = $input['exclude_student_ids'] ?? []; // Array of UUID strings
 
     if ($amount <= 0) {
         sendError('Amount must be greater than zero');
@@ -331,11 +332,30 @@ if ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'bulk_ad
         $db->beginTransaction();
 
         // Fetch all active, non-deleted students
-        $stmtStudents = $db->query("SELECT id FROM students WHERE status = 'Active' AND is_deleted = false");
+        $queryStr = "SELECT id FROM students WHERE status = 'Active' AND is_deleted = false";
+        $params = [];
+
+        if (count($excludeStudentIds) > 0) {
+            // Validate UUID array to avoid SQL injection
+            $placeholders = [];
+            foreach ($excludeStudentIds as $idx => $uuid) {
+                if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $uuid)) {
+                    $key = ":ex_" . $idx;
+                    $placeholders[] = $key;
+                    $params[$key] = $uuid;
+                }
+            }
+            if (count($placeholders) > 0) {
+                $queryStr .= " AND id NOT IN (" . implode(", ", $placeholders) . ")";
+            }
+        }
+
+        $stmtStudents = $db->prepare($queryStr);
+        $stmtStudents->execute($params);
         $students = $stmtStudents->fetchAll(PDO::FETCH_COLUMN);
 
         if (count($students) === 0) {
-            sendError('No active students found');
+            sendError('No active students found after exclusion');
         }
 
         // Insert transaction for each student
@@ -369,6 +389,7 @@ if ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'bulk_ad
             null,
             [
                 'students_count' => count($students),
+                'excluded_count' => count($excludeStudentIds),
                 'amount' => $amount,
                 'type' => $type,
                 'description' => $description
