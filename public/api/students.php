@@ -310,6 +310,81 @@ if ($method === 'GET') {
     }
 }
 
+if ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'bulk_adjust_balance') {
+    // Only Admin or Finance can adjust balances
+    $user = requireRole(['Admin', 'Finance']);
+    $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+    
+    $amount = isset($input['amount']) ? floatval($input['amount']) : 0.0;
+    $type = $input['type'] ?? ''; // 'Adjustment' or 'Refund'
+    $description = trim($input['description'] ?? '');
+
+    if ($amount <= 0) {
+        sendError('Amount must be greater than zero');
+    }
+    if (!in_array($type, ['Adjustment', 'Refund'])) {
+        sendError('Type must be Adjustment or Refund');
+    }
+
+    try {
+        $db = getDatabaseConnection();
+        $db->beginTransaction();
+
+        // Fetch all active, non-deleted students
+        $stmtStudents = $db->query("SELECT id FROM students WHERE status = 'Active' AND is_deleted = false");
+        $students = $stmtStudents->fetchAll(PDO::FETCH_COLUMN);
+
+        if (count($students) === 0) {
+            sendError('No active students found');
+        }
+
+        // Insert transaction for each student
+        $stmtInsert = $db->prepare("
+            INSERT INTO payment_transactions (
+                student_id, amount, transaction_type, created_by
+            ) VALUES (
+                :student_id, :amount, :type, :created_by
+            )
+        ");
+
+        foreach ($students as $studentId) {
+            $stmtInsert->execute([
+                'student_id' => $studentId,
+                'amount' => $amount,
+                'type' => $type,
+                'created_by' => $user['id']
+            ]);
+        }
+
+        $db->commit();
+
+        // Write audit log
+        logAudit(
+            $user['id'],
+            $user['email'],
+            'StudentBulkPaymentAdjustment',
+            'payment_transactions',
+            null,
+            null,
+            [
+                'students_count' => count($students),
+                'amount' => $amount,
+                'type' => $type,
+                'description' => $description
+            ]
+        );
+
+        sendSuccess([
+            'count' => count($students)
+        ], 'Bulk balance adjusted successfully');
+    } catch (Exception $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        sendError('Database error: ' . $e->getMessage(), 500);
+    }
+}
+
 if ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'adjust_balance') {
     // Only Admin or Finance can adjust balances
     $user = requireRole(['Admin', 'Finance']);

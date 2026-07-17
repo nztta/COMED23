@@ -51,6 +51,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 11. Setup Balance Adjustment Form
     setupAdjustPaymentForm();
+
+    // 12. Setup Bulk Balance Adjustment Form
+    setupBulkAdjustPaymentForm();
 });
 
 function updateProfileUI() {
@@ -3288,6 +3291,60 @@ function setupAdjustPaymentForm() {
             if (result.status === 'success') {
                 showToast('บันทึกการชำระเงินสด / ปรับปรุงยอดเรียบร้อยแล้ว!');
                 closeModal('adjust-payment-modal');
+                form.reset();
+                
+                // Refresh list if students panel is active
+                if (activeTab === 'students') {
+                    loadStudentsList();
+                }
+            } else {
+                showToast('บันทึกไม่สำเร็จ: ' + result.message, 'error');
+            }
+        } catch (err) {
+            console.error(err);
+            showToast('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์', 'error');
+        } finally {
+            Loading.hide();
+        }
+    });
+}
+
+function setupBulkAdjustPaymentForm() {
+    const form = document.getElementById('bulk-adjust-payment-form');
+    if (!form) return;
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const amount = parseFloat(document.getElementById('bulk-adjust-amount').value);
+        const type = document.getElementById('bulk-adjust-type').value;
+        const description = document.getElementById('bulk-adjust-description').value;
+
+        const confirmMsg = type === 'Adjustment' 
+            ? `คุณต้องการเพิ่มเงิน/บันทึกรับเงินสดทุกคน คนละ ${amount.toFixed(2)} บาท ใช่หรือไม่?`
+            : `คุณต้องการถอนเงิน/คืนเงินทุกคน คนละ ${amount.toFixed(2)} บาท ใช่หรือไม่?`;
+            
+        if (!confirm(confirmMsg)) return;
+
+        Loading.show('กำลังบันทึกรายการปรับปรุงยอดทุกคน...');
+        try {
+            const response = await fetch(`${CONFIG.API_BASE_URL}/students.php?action=bulk_adjust_balance`, {
+                method: 'POST',
+                headers: {
+                    ...getAuthHeaders(),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    amount,
+                    type,
+                    description
+                })
+            });
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                showToast(`บันทึกปรับปรุงยอดทุกคน (${result.data.count} คน) เรียบร้อยแล้ว!`);
+                closeModal('bulk-adjust-payment-modal');
                 form.reset();
                 
                 // Refresh list if students panel is active

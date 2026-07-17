@@ -647,8 +647,13 @@
                             <input type="text" id="student-search" class="search-input"
                                 placeholder="ค้นหาโดยใช้รหัสประจำตัวนักศึกษา, ชื่อ, หรือชั้นเรียน...">
                         </div>
-                        <button id="add-student-btn" class="btn btn-primary" style="font-family: var(--font-heading);">+
-                            เพิ่มนักศึกษาใหม่</button>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button class="btn btn-secondary" onclick="openModal('bulk-adjust-payment-modal')" style="font-family: var(--font-heading); color: var(--accent); border: 1px solid rgba(239, 68, 68, 0.2);">
+                                <i class="fas fa-coins"></i> เงินสด/ปรับปรุง (ทุกคน)
+                            </button>
+                            <button id="add-student-btn" class="btn btn-primary" style="font-family: var(--font-heading);">+
+                                เพิ่มนักศึกษาใหม่</button>
+                        </div>
                     </div>
 
                     <div class="table-wrapper">
@@ -1631,6 +1636,42 @@
                 <div class="modal-footer" style="padding-top: 1rem; display: flex; gap: 0.75rem; justify-content: flex-end;">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('adjust-payment-modal')">ยกเลิก</button>
                     <button type="submit" class="btn btn-primary" style="font-family: var(--font-heading);">บันทึกการทำรายการ</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: Bulk Adjust Students Balance (Cash/Refund for Everyone) -->
+    <div id="bulk-adjust-payment-modal" class="modal-backdrop">
+        <div class="modal-content" style="max-width: 500px; background-color: var(--modal-bg); backdrop-filter: blur(20px);">
+            <div class="modal-header">
+                <h2 style="font-family: var(--font-heading); margin: 0;">บันทึกชำระเงินสด / ปรับปรุงยอดเงิน (ทุกคน)</h2>
+                <button class="modal-close-btn" onclick="closeModal('bulk-adjust-payment-modal')">&times;</button>
+            </div>
+            <form id="bulk-adjust-payment-form">
+                <div class="modal-body" style="display: flex; flex-direction: column; gap: 1rem; padding: 1.25rem 0;">
+                    <div style="font-family: var(--font-heading); font-size: 0.95rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                        <i class="fas fa-exclamation-triangle" style="color: var(--status-yellow-text); margin-right: 0.25rem;"></i> การทำรายการนี้จะเพิ่มยอดเงินสดหรือปรับปรุงยอดบัญชีให้กับ **นักศึกษาทุกคนที่เปิดใช้งานในระบบ**
+                    </div>
+                    <div class="form-group" style="display: flex; flex-direction: column; gap: 0.35rem;">
+                        <label for="bulk-adjust-type" style="font-size: 0.9rem; font-weight: 600;">ประเภทการปรับปรุงบัญชี</label>
+                        <select id="bulk-adjust-type" class="form-control" required style="font-family: 'Kanit', sans-serif;">
+                            <option value="Adjustment">ชำระด้วยเงินสด / ปรับปรุงเพิ่มเงินทุกคน (Adjustment)</option>
+                            <option value="Refund">ถอนเงินสด / คืนเงินนักศึกษาทุกคน (Refund)</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="display: flex; flex-direction: column; gap: 0.35rem;">
+                        <label for="bulk-adjust-amount" style="font-size: 0.9rem; font-weight: 600;">จำนวนเงินต่อคน (บาท)</label>
+                        <input type="number" id="bulk-adjust-amount" class="form-control" placeholder="0.00" min="0.01" step="0.01" required style="font-family: 'Kanit', sans-serif;">
+                    </div>
+                    <div class="form-group" style="display: flex; flex-direction: column; gap: 0.35rem;">
+                        <label for="bulk-adjust-description" style="font-size: 0.9rem; font-weight: 600;">หมายเหตุ / รายละเอียดเพิ่มเติม</label>
+                        <input type="text" id="bulk-adjust-description" class="form-control" placeholder="เช่น ชำระค่าห้องเรียน 20 บาททุกคน" required style="font-family: 'Kanit', sans-serif;">
+                    </div>
+                </div>
+                <div class="modal-footer" style="padding-top: 1rem; display: flex; gap: 0.75rem; justify-content: flex-end;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('bulk-adjust-payment-modal')">ยกเลิก</button>
+                    <button type="submit" class="btn btn-primary" style="font-family: var(--font-heading);">บันทึกรายการทุกคน</button>
                 </div>
             </form>
         </div>
