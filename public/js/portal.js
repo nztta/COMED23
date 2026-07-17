@@ -1,5 +1,19 @@
 // public/js/portal.js
 
+// JWT Token Decoder helper
+function parseJwt(token) {
+    try {
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload);
+    } catch (e) {
+        return null;
+    }
+}
+
 // State variables for student session
 let currentStudent = null;
 let monthlyStatusData = [];
@@ -111,7 +125,39 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
     }
 
-    const sessionData = localStorage.getItem('student_session');
+    // Show back to admin button if user has a staff role session
+    const userRole = localStorage.getItem('user_role');
+    const backToAdminBtn = document.getElementById('back-to-admin-btn');
+    if (userRole && backToAdminBtn) {
+        backToAdminBtn.classList.remove('hidden');
+    }
+
+    let sessionData = localStorage.getItem('student_session');
+    const token = localStorage.getItem('sb_access_token');
+    
+    // Auto-fetch student session by email if logged in as staff/admin
+    if (!sessionData && token) {
+        const payload = parseJwt(token);
+        if (payload && payload.email) {
+            try {
+                const response = await fetch(`${CONFIG.API_BASE_URL}/students.php?email=${encodeURIComponent(payload.email)}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.status === 'success') {
+                        localStorage.setItem('student_session', JSON.stringify(result.data));
+                        sessionData = JSON.stringify(result.data);
+                    }
+                }
+            } catch (e) {
+                console.warn('Failed to auto-fetch student session by email:', e);
+            }
+        }
+    }
+
     if (!sessionData) {
         window.location.href = 'index.html';
         return;

@@ -39,6 +39,8 @@ async function signOut() {
     if (!client) return;
 
     localStorage.removeItem('sb_access_token');
+    localStorage.removeItem('student_session');
+    localStorage.removeItem('user_role');
     await client.auth.signOut();
     window.location.href = 'index.html';
 }

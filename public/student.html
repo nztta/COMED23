@@ -1438,6 +1438,10 @@
 
                 <!-- Action Buttons -->
                 <div class="top-bar-actions">
+                    <a href="admin.html" id="back-to-admin-btn" class="action-icon-btn hidden" title="กลับหน้าแอดมิน"
+                        style="text-decoration: none; display: flex; align-items: center; justify-content: center; color: var(--text-primary);">
+                        <i class="fas fa-user-shield"></i>
+                    </a>
                     <a href="inbox.html" class="action-icon-btn" id="inbox-bell-btn" title="ประกาศประชาสัมพันธ์ส่วนตัว"
                         style="position: relative; text-decoration: none; display: flex; align-items: center; justify-content: center; color: var(--text-primary);">
                         <i class="fas fa-bell"></i>
@@ -1947,7 +1951,7 @@
                             style="font-size: 0.95rem; font-weight: 500; color: var(--text-primary);">รหัสผ่านเดิม</label>
                         <div style="position: relative;">
                             <input type="password" id="old-password" class="form-control" placeholder="รหัสผ่านปัจจุบัน"
-                                required style="padding-right: 2.75rem; width: 100%;">
+                                autocomplete="current-password" required style="padding-right: 2.75rem; width: 100%;">
                             <button type="button" class="toggle-password-field-btn" data-target="old-password"
                                 style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; font-size: 1.1rem; z-index: 10;"
                                 title="แสดง/ซ่อนรหัสผ่าน">
@@ -1960,7 +1964,7 @@
                             style="font-size: 0.95rem; font-weight: 500; color: var(--text-primary);">รหัสผ่านใหม่</label>
                         <div style="position: relative; ">
                             <input type="password" id="new-password" class="form-control"
-                                placeholder="อย่างน้อย 6 ตัวอักษร" required minlength="6" ;
+                                placeholder="อย่างน้อย 6 ตัวอักษร" autocomplete="new-password" required minlength="6" ;
                                 style="padding-right: 2.75rem; width: 100%">
                             <button type="button" class="toggle-password-field-btn" data-target="new-password"
                                 style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; font-size: 1.1rem; z-index: 10;"
@@ -1974,7 +1978,7 @@
                             style="font-size: 0.95rem; font-weight: 500; color: var(--text-primary);">ยืนยันรหัสผ่านใหม่</label>
                         <div style="position: relative;">
                             <input type="password" id="confirm-password" class="form-control"
-                                placeholder="กรอกรหัสผ่านใหม่อีกครั้ง" required minlength="6"
+                                placeholder="กรอกรหัสผ่านใหม่อีกครั้ง" autocomplete="new-password" required minlength="6"
                                 style="padding-right: 2.75rem; width: 100%;">
                             <button type="button" class="toggle-password-field-btn" data-target="confirm-password"
                                 style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; font-size: 1.1rem; z-index: 10;"
@@ -2144,6 +2148,8 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- Core Configurations -->
     <script src="js/config.js"></script>
+    <!-- Authentication SDK Wrapper -->
+    <script src="js/auth.js"></script>
     <!-- Portal Logic -->
     <script src="js/portal.js" defer></script>
 

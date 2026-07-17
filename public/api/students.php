@@ -263,6 +263,7 @@ if ($method === 'GET') {
     try {
         $db = getDatabaseConnection();
         $id = $_GET['id'] ?? null;
+        $email = $_GET['email'] ?? null;
 
         if ($id) {
             $stmt = $db->prepare("SELECT * FROM students WHERE id = :id AND is_deleted = false");
@@ -272,6 +273,30 @@ if ($method === 'GET') {
             if (!$student) {
                 sendError('Student not found', 404);
             }
+            sendSuccess($student);
+        } elseif ($email) {
+            $stmt = $db->prepare("SELECT * FROM students WHERE email = :email AND is_deleted = false");
+            $stmt->execute(['email' => $email]);
+            $student = $stmt->fetch();
+
+            if (!$student) {
+                sendError('Student not found with this email', 404);
+            }
+            
+            // Start student PHP session for cross-portal navigation compatibility
+            if (session_status() === PHP_SESSION_NONE) {
+                session_start();
+            }
+            $_SESSION['student_id'] = $student['id'];
+            $_SESSION['student_code'] = $student['student_id'];
+            $_SESSION['student_name'] = $student['full_name'];
+            $_SESSION['student_email'] = $student['email'];
+            $_SESSION['role'] = 'นักศึกษา';
+            
+            // Combine prefix and full_name for backward compatibility in frontend display
+            $student['full_name'] = ($student['prefix'] ? $student['prefix'] : '') . $student['full_name'];
+            unset($student['password_hash']); // strip hash for safety
+            
             sendSuccess($student);
         } else {
             // List all active students (optimized columns selection to speed up loading)
