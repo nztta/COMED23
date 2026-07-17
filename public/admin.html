@@ -989,7 +989,7 @@
                                 <label for="admin-current-password" style="color: var(--form-label-color); font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 0.5rem;">รหัสผ่านปัจจุบัน</label>
                                 <div class="input-with-icon">
                                     <i class="fas fa-unlock-alt field-icon"></i>
-                                    <input type="password" id="admin-current-password" class="form-control" placeholder="ระบุรหัสผ่านเดิม" required>
+                                    <input type="password" id="admin-current-password" class="form-control" placeholder="ระบุรหัสผ่านเดิม" autocomplete="current-password" required>
                                     <button type="button" class="toggle-password-btn" onclick="togglePasswordVisibility('admin-current-password', this)">
                                         <i class="far fa-eye"></i>
                                     </button>
@@ -999,7 +999,7 @@
                                 <label for="admin-new-password" style="color: var(--form-label-color); font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 0.5rem;">รหัสผ่านใหม่</label>
                                 <div class="input-with-icon">
                                     <i class="fas fa-key field-icon"></i>
-                                    <input type="password" id="admin-new-password" class="form-control" placeholder="รหัสผ่านใหม่ (อย่างน้อย 6 ตัวอักษร)" minlength="6" required>
+                                    <input type="password" id="admin-new-password" class="form-control" placeholder="รหัสผ่านใหม่ (อย่างน้อย 6 ตัวอักษร)" minlength="6" autocomplete="new-password" required>
                                     <button type="button" class="toggle-password-btn" onclick="togglePasswordVisibility('admin-new-password', this)">
                                         <i class="far fa-eye"></i>
                                     </button>
@@ -1009,7 +1009,7 @@
                                 <label for="admin-confirm-password" style="color: var(--form-label-color); font-weight: 600; font-size: 0.85rem; display: block; margin-bottom: 0.5rem;">ยืนยันรหัสผ่านใหม่</label>
                                 <div class="input-with-icon">
                                     <i class="fas fa-check-double field-icon"></i>
-                                    <input type="password" id="admin-confirm-password" class="form-control" placeholder="ระบุรหัสผ่านใหม่อีกครั้ง" minlength="6" required>
+                                    <input type="password" id="admin-confirm-password" class="form-control" placeholder="ระบุรหัสผ่านใหม่อีกครั้ง" minlength="6" autocomplete="new-password" required>
                                     <button type="button" class="toggle-password-btn" onclick="togglePasswordVisibility('admin-confirm-password', this)">
                                         <i class="far fa-eye"></i>
                                     </button>
@@ -1047,6 +1047,24 @@
                             </div>
                             <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; font-family: var(--font-heading); padding: 0.75rem; background: var(--accent-gradient); border: none; box-shadow: 0 4px 12px rgba(240, 98, 146, 0.25); transition: all 0.2s;">
                                 <i class="fas fa-save" style="margin-right: 0.5rem;"></i> บันทึกข้อกำหนดนโยบาย
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Card 3: PromptPay Settings -->
+                    <div class="card admin-setting-card" style="padding: 2rem;">
+                        <div style="text-align: center; margin-bottom: 1.5rem;">
+                            <i class="fas fa-qrcode" style="font-size: 2.2rem; color: var(--accent-light); margin-bottom: 0.75rem; filter: drop-shadow(0 2px 8px rgba(240, 98, 146, 0.3));"></i>
+                            <h2 style="font-family: var(--font-heading); margin-bottom: 0.25rem; color: var(--text-primary); font-size: 1.25rem;">ตั้งค่าบัญชีรับชำระเงิน (PromptPay)</h2>
+                            <p style="font-size: 0.85rem; color: var(--text-secondary);">ระบุหมายเลข PromptPay สำหรับสแกนจ่ายเงินและแสดงข้อมูลการโอน</p>
+                        </div>
+                        <form id="admin-promptpay-form">
+                            <div class="form-group" style="margin-bottom: 1.75rem;">
+                                <label for="promptpay-number-input" style="color: var(--form-label-color); font-weight: 600; display: block; margin-bottom: 0.5rem; font-size: 0.85rem;">หมายเลข PromptPay (เบอร์โทรศัพท์ หรือ เลขบัตรประชาชน)</label>
+                                <input type="text" id="promptpay-number-input" class="form-control" placeholder="เช่น 0923797157 หรือ 1100XXXXXXXXX" style="background-color: var(--form-input-bg); color: var(--form-input-text-color); border-color: var(--form-input-border-color); width: 100%; padding: 0.75rem; font-family: var(--font-body); font-size: 0.85rem; border-radius: var(--border-radius-sm); border: 1px solid var(--border-glass); transition: all var(--transition-fast);" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center; font-family: var(--font-heading); padding: 0.75rem; background: var(--accent-gradient); border: none; box-shadow: 0 4px 12px rgba(240, 98, 146, 0.25); transition: all 0.2s;">
+                                <i class="fas fa-save" style="margin-right: 0.5rem;"></i> บันทึกข้อมูล PromptPay
                             </button>
                         </form>
                     </div>

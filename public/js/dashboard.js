@@ -42,6 +42,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 8. Setup System Policy Form
     setupPolicyForm();
+
+    // 9. Setup PromptPay Form
+    setupPromptPayForm();
 });
 
 function updateProfileUI() {
@@ -2865,10 +2868,13 @@ async function loadSystemSettings() {
             const input = document.getElementById('policy-text-input');
             if (toggle) toggle.checked = (result.data.payment_policy_enabled === 'true');
             if (input) input.value = result.data.payment_policy_text || '';
+
+            const promptpayInput = document.getElementById('promptpay-number-input');
+            if (promptpayInput) promptpayInput.value = result.data.promptpay_number || '0923797157';
         }
     } catch (e) {
         console.error(e);
-        showToast('ไม่สามารถดึงค่านโยบายระบบได้', 'error');
+        showToast('ไม่สามารถดึงค่าระบบได้', 'error');
     }
 }
 
@@ -2903,6 +2909,60 @@ function setupPolicyForm() {
             const result = await response.json();
             if (result.status === 'success') {
                 showToast('บันทึกการตั้งค่านโยบายเรียบร้อยแล้ว!', 'success');
+            } else {
+                showToast('บันทึกไม่สำเร็จ: ' + result.message, 'error');
+            }
+        } catch (err) {
+            console.error(err);
+            showToast('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์', 'error');
+        } finally {
+            Loading.hide();
+        }
+    });
+}
+
+function setupPromptPayForm() {
+    const form = document.getElementById('admin-promptpay-form');
+    if (!form) return;
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const input = document.getElementById('promptpay-number-input');
+        const promptpay_number = input ? input.value.trim() : '';
+
+        if (!promptpay_number) {
+            showToast('กรุณาระบุหมายเลข PromptPay', 'error');
+            return;
+        }
+
+        const cleanNumber = promptpay_number.replace(/[^0-9]/g, '');
+        if (!cleanNumber) {
+            showToast('หมายเลข PromptPay ต้องเป็นตัวเลขเท่านั้น', 'error');
+            return;
+        }
+
+        if (cleanNumber.length !== 10 && cleanNumber.length !== 13) {
+            showToast('หมายเลข PromptPay ควรเป็นเบอร์โทรศัพท์ (10 หลัก) หรือเลขบัตรประชาชน (13 หลัก)', 'warning');
+        }
+
+        const conf = await showConfirm(
+            'ยืนยันการตั้งค่า PromptPay',
+            `คุณต้องการบันทึกหมายเลข PromptPay เป็น "${cleanNumber}" ใช่หรือไม่?`
+        );
+        if (!conf) return;
+
+        Loading.show('กำลังบันทึกตั้งค่า PromptPay...');
+        try {
+            const response = await fetch(`${CONFIG.API_BASE_URL}/settings.php?action=save_system_settings`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ promptpay_number: cleanNumber })
+            });
+            const result = await response.json();
+            if (result.status === 'success') {
+                showToast('บันทึกหมายเลข PromptPay เรียบร้อยแล้ว!', 'success');
+                if (input) input.value = cleanNumber;
             } else {
                 showToast('บันทึกไม่สำเร็จ: ' + result.message, 'error');
             }

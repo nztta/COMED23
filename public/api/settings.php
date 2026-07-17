@@ -28,6 +28,9 @@ if ($method === 'GET') {
             if (!isset($rows['payment_policy_text'])) {
                 $rows['payment_policy_text'] = 'ฉันรับรองว่าข้อมูลการโอนเงินและสลิปนี้ถูกต้องเป็นความจริงทุกประการ';
             }
+            if (!isset($rows['promptpay_number'])) {
+                $rows['promptpay_number'] = '0923797157';
+            }
             sendSuccess($rows);
         }
 
@@ -72,36 +75,72 @@ if ($method === 'POST') {
     $action = $_GET['action'] ?? null;
     if ($action === 'save_system_settings') {
         $input = json_decode(file_get_contents('php://input'), true);
-        $enabled = ($input['payment_policy_enabled'] ?? 'false') === 'true' ? 'true' : 'false';
-        $text = trim($input['payment_policy_text'] ?? '');
-
-        if (empty($text)) {
-            sendError('ข้อความนโยบายการจัดเก็บเงินห้ามว่าง');
-        }
 
         try {
             $db = getDatabaseConnection();
-            $stmt = $db->prepare("
-                INSERT INTO system_settings (key, value, updated_at, updated_by)
-                VALUES ('payment_policy_enabled', :enabled, NOW(), :user_id)
-                ON CONFLICT (key) DO UPDATE SET value = :enabled, updated_at = NOW(), updated_by = :user_id
-            ");
-            $stmt->execute(['enabled' => $enabled, 'user_id' => $user['id']]);
+            $db->beginTransaction();
 
-            $stmt2 = $db->prepare("
-                INSERT INTO system_settings (key, value, updated_at, updated_by)
-                VALUES ('payment_policy_text', :text, NOW(), :user_id)
-                ON CONFLICT (key) DO UPDATE SET value = :text, updated_at = NOW(), updated_by = :user_id
-            ");
-            $stmt2->execute(['text' => $text, 'user_id' => $user['id']]);
+            $updated_keys = [];
 
-            logAudit($user['id'], $user['email'], 'update_system_settings', 'system_settings', null, null, [
-                'payment_policy_enabled' => $enabled,
-                'payment_policy_text' => $text
-            ]);
+            // 1. Process payment policy settings if present in input
+            if (isset($input['payment_policy_enabled']) || isset($input['payment_policy_text'])) {
+                $enabled = ($input['payment_policy_enabled'] ?? 'false') === 'true' ? 'true' : 'false';
+                $text = trim($input['payment_policy_text'] ?? '');
 
+                if (empty($text)) {
+                    sendError('ข้อความนโยบายการจัดเก็บเงินห้ามว่าง');
+                }
+
+                $stmt = $db->prepare("
+                    INSERT INTO system_settings (key, value, updated_at, updated_by)
+                    VALUES ('payment_policy_enabled', :enabled, NOW(), :user_id)
+                    ON CONFLICT (key) DO UPDATE SET value = :enabled, updated_at = NOW(), updated_by = :user_id
+                ");
+                $stmt->execute(['enabled' => $enabled, 'user_id' => $user['id']]);
+
+                $stmt2 = $db->prepare("
+                    INSERT INTO system_settings (key, value, updated_at, updated_by)
+                    VALUES ('payment_policy_text', :text, NOW(), :user_id)
+                    ON CONFLICT (key) DO UPDATE SET value = :text, updated_at = NOW(), updated_by = :user_id
+                ");
+                $stmt2->execute(['text' => $text, 'user_id' => $user['id']]);
+
+                $updated_keys['payment_policy_enabled'] = $enabled;
+                $updated_keys['payment_policy_text'] = $text;
+            }
+
+            // 2. Process promptpay settings if present in input
+            if (isset($input['promptpay_number'])) {
+                $promptpay = trim($input['promptpay_number']);
+                if (empty($promptpay)) {
+                    sendError('หมายเลข PromptPay ห้ามว่าง');
+                }
+
+                $cleanPromptpay = preg_replace('/[^0-9]/', '', $promptpay);
+                if (empty($cleanPromptpay)) {
+                    sendError('หมายเลข PromptPay ต้องเป็นตัวเลขเท่านั้น');
+                }
+
+                $stmt3 = $db->prepare("
+                    INSERT INTO system_settings (key, value, updated_at, updated_by)
+                    VALUES ('promptpay_number', :promptpay, NOW(), :user_id)
+                    ON CONFLICT (key) DO UPDATE SET value = :promptpay, updated_at = NOW(), updated_by = :user_id
+                ");
+                $stmt3->execute(['promptpay' => $cleanPromptpay, 'user_id' => $user['id']]);
+
+                $updated_keys['promptpay_number'] = $cleanPromptpay;
+            }
+
+            if (!empty($updated_keys)) {
+                logAudit($user['id'], $user['email'], 'update_system_settings', 'system_settings', null, null, $updated_keys);
+            }
+
+            $db->commit();
             sendSuccess('บันทึกการตั้งค่าระบบเรียบร้อยแล้ว');
         } catch (Exception $e) {
+            if (isset($db) && $db->inTransaction()) {
+                $db->rollBack();
+            }
             sendError('Failed to save settings: ' . $e->getMessage(), 500);
         }
         exit;

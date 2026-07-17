@@ -43,8 +43,20 @@ self.addEventListener('activate', (e) => {
 
 // Fetch Event
 self.addEventListener('fetch', (e) => {
-    // Ignore API requests
-    if (e.request.url.includes('/api/')) {
+    // Ignore non-GET requests
+    if (e.request.method !== 'GET') {
+        return;
+    }
+
+    const url = new URL(e.request.url);
+
+    // Ignore cross-origin requests
+    if (url.origin !== self.location.origin) {
+        return;
+    }
+
+    // Ignore local API requests
+    if (url.pathname.includes('/api/')) {
         return;
     }
 

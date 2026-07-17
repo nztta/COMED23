@@ -11,6 +11,7 @@ let compressedFile = null;
 let currentStep = 1;
 let paymentPolicyEnabled = false;
 let paymentPolicyText = '';
+let promptpayNumber = '0923797157';
 
 // DOM Element References
 const step1Section = document.getElementById('step-1-section');
@@ -342,13 +343,19 @@ async function loadPolicySettings() {
         if (result.status === 'success') {
             paymentPolicyEnabled = result.data.payment_policy_enabled === 'true';
             paymentPolicyText = result.data.payment_policy_text || '';
+            promptpayNumber = result.data.promptpay_number || '0923797157';
 
             const consentContainer = document.getElementById('policy-consent-container');
             const checkbox = document.getElementById('payment-policy-checkbox');
             const modalBody = document.getElementById('modal-policy-body');
+            const promptpayDisplay = document.getElementById('promptpay-number-display');
 
             if (modalBody) {
                 modalBody.textContent = paymentPolicyText;
+            }
+
+            if (promptpayDisplay) {
+                promptpayDisplay.textContent = promptpayNumber;
             }
 
             if (consentContainer) {
@@ -764,7 +771,7 @@ function setupWizardListeners() {
             const total = selectedWeeks.length * selectedMonthSetting.weekly_fee;
             const qrImg = document.getElementById('promptpay-qr-img');
             if (qrImg) {
-                qrImg.src = `https://promptpay.io/0923797157/${total.toFixed(2)}.png`;
+                qrImg.src = `https://promptpay.io/${promptpayNumber}/${total.toFixed(2)}.png`;
             }
         };
     }
