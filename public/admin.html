@@ -648,6 +648,9 @@
                                 placeholder="ค้นหาโดยใช้รหัสประจำตัวนักศึกษา, ชื่อ, หรือชั้นเรียน...">
                         </div>
                         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button class="btn btn-secondary" onclick="triggerBulkOutstandingNotification()" style="font-family: var(--font-heading); color: var(--status-yellow-text); border: 1px solid rgba(245, 158, 11, 0.2);">
+                                <i class="fas fa-bell"></i> แจ้งเตือนค้างจ่าย (ทุกคน)
+                            </button>
                             <button class="btn btn-secondary" onclick="openModal('bulk-adjust-payment-modal')" style="font-family: var(--font-heading); color: var(--accent); border: 1px solid rgba(239, 68, 68, 0.2);">
                                 <i class="fas fa-coins"></i> เงินสด/ปรับปรุง (ทุกคน)
                             </button>

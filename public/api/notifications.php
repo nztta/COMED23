@@ -156,6 +156,145 @@ if ($method === 'POST') {
         } catch (Exception $e) {
             sendError('Failed to mark all as read: ' . $e->getMessage(), 500);
         }
+    } elseif ($action === 'notify_outstanding') {
+        // Only Admin or Finance can trigger outstanding balance notifications
+        $user = requireRole(['Admin', 'Finance']);
+        $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+
+        $targetStudentId = $input['student_id'] ?? null;
+        $isBulk = isset($input['bulk']) && $input['bulk'] === true;
+
+        try {
+            $db = getDatabaseConnection();
+            $queryStr = "
+                SELECT 
+                    s.id,
+                    s.student_id,
+                    s.prefix,
+                    s.full_name,
+                    s.nickname,
+                    COALESCE(
+                        (SELECT SUM(w.amount) 
+                         FROM public.weekly_payment_records w 
+                         JOIN public.monthly_payment_settings m ON w.month_setting_id = m.id
+                         WHERE w.student_id = s.id AND w.is_deleted = false AND m.is_deleted = false
+                        ), 0
+                    ) AS total_billing,
+                    COALESCE(
+                        (SELECT SUM(w.amount) 
+                         FROM public.weekly_payment_records w
+                         JOIN public.monthly_payment_settings m ON w.month_setting_id = m.id
+                         WHERE w.student_id = s.id AND w.is_deleted = false AND m.is_deleted = false AND w.status = 'Verified'
+                        ), 0
+                    ) AS total_paid_slips,
+                    COALESCE(
+                        (SELECT SUM(w.amount) 
+                         FROM public.weekly_payment_records w
+                         JOIN public.monthly_payment_settings m ON w.month_setting_id = m.id
+                         WHERE w.student_id = s.id AND w.is_deleted = false AND m.is_deleted = false AND w.status = 'Pending'
+                        ), 0
+                    ) AS total_pending,
+                    COALESCE(
+                        (SELECT SUM(CASE WHEN transaction_type = 'Adjustment' THEN amount ELSE -amount END) 
+                         FROM public.payment_transactions 
+                         WHERE student_id = s.id AND is_deleted = false AND transaction_type IN ('Adjustment', 'Refund')
+                        ), 0
+                    ) AS net_cash
+                FROM public.students s
+                WHERE s.status = 'Active' AND s.is_deleted = false
+            ";
+
+            if ($targetStudentId) {
+                $queryStr .= " AND s.id = :student_id";
+            }
+
+            $stmt = $db->prepare($queryStr);
+            if ($targetStudentId) {
+                $stmt->execute(['student_id' => $targetStudentId]);
+            } else {
+                $stmt->execute();
+            }
+
+            $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $notifiedCount = 0;
+            $outstandingList = [];
+
+            $db->beginTransaction();
+
+            $stmtNotify = $db->prepare("
+                INSERT INTO public.notifications (
+                    title, message, type, student_id, author_name, target_page, created_by
+                ) VALUES (
+                    :title, :message, :type, :student_id, :author_name, :target_page, :created_by
+                )
+            ");
+
+            foreach ($students as $s) {
+                $billing = (float)$s['total_billing'];
+                $paid = (float)$s['total_paid_slips'];
+                $pending = (float)$s['total_pending'];
+                $cash = (float)$s['net_cash'];
+
+                $outstanding = $billing - $paid - $cash - $pending;
+                if ($outstanding < 0) {
+                    $outstanding = 0.0;
+                }
+
+                if ($outstanding > 0.01) {
+                    $notifiedCount++;
+                    $studentName = ($s['prefix'] ?? '') . $s['full_name'];
+                    $outstandingList[] = [
+                        'student_id' => $s['student_id'],
+                        'name' => $studentName,
+                        'amount' => $outstanding
+                    ];
+
+                    // Create targeted inbox notification
+                    $stmtNotify->execute([
+                        'title' => 'แจ้งเตือนยอดค้างชำระค่าห้องเรียน',
+                        'message' => "คุณมียอดค้างชำระสะสมทั้งหมด " . number_format($outstanding, 2) . " บาท โปรดเข้าสู่ระบบเพื่ออัปโหลดสลิปชำระเงินโดยเร็วที่สุด",
+                        'type' => 'Rejection',
+                        'student_id' => $s['id'],
+                        'author_name' => $currentUser['full_name'],
+                        'target_page' => 'portal.html',
+                        'created_by' => $currentUser['id']
+                    ]);
+                }
+            }
+
+            $db->commit();
+
+            // Send Discord notifications
+            require_once __DIR__ . '/helpers/discord.php';
+
+            if ($isBulk) {
+                if (count($outstandingList) > 0) {
+                    $discordMsg = "📢 **แจ้งเตือนยอดค้างชำระรวมของห้องเรียน**\n\n";
+                    foreach ($outstandingList as $o) {
+                        $discordMsg .= "• **{$o['name']}** ({$o['student_id']}): ค้างชำระ `{$o['amount']}` บาท\n";
+                    }
+                    $discordMsg .= "\nโปรดอัปโหลดสลิปชำระเงินผ่านระบบพอร์ทัลโดยเร็วที่สุดครับ";
+                    sendDiscordNotification('ทวงยอดค่าห้องเรียนรายสัปดาห์ (ทุกคน)', $discordMsg, '15158332'); // Red
+                } else {
+                    sendDiscordNotification('ทวงยอดค่าห้องเรียนรายสัปดาห์ (ทุกคน)', '🎉 นักศึกษาทุกคนชำระเงินครบหมดแล้ว ไม่มีใครมียอดค้างชำระในระบบ!', '3066993'); // Green
+                }
+            } else {
+                if (count($outstandingList) > 0) {
+                    $o = $outstandingList[0];
+                    $discordMsg = "📢 **ทวงยอดค้างชำระรายบุคคล**\n\nเรียนคุณ **{$o['name']}** ({$o['student_id']})\nคุณมียอดค้างชำระสะสมรวม `{$o['amount']}` บาท\n\nโปรดเข้าสู่ระบบเพื่ออัปโหลดสลิปชำระเงินโดยเร็วที่สุดครับ";
+                    sendDiscordNotification('ทวงยอดค่าห้องเรียนรายบุคคล', $discordMsg, '15105570'); // Orange
+                }
+            }
+
+            sendSuccess([
+                'notified_count' => $notifiedCount
+            ], 'Outstanding balance notifications sent successfully');
+        } catch (Exception $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            sendError('Failed to send outstanding notifications: ' . $e->getMessage(), 500);
+        }
     }
 }
 

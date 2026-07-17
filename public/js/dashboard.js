@@ -561,6 +561,7 @@ function renderStudentsTable(students) {
             <td>
                 <button class="btn btn-secondary btn-sm" onclick="openEditStudentModal('${s.id}')">แก้ไข</button>
                 <button class="btn btn-secondary btn-sm text-primary" onclick="openAdjustPaymentModal('${s.id}', '${(s.prefix || '') + s.full_name}')" style="color: var(--accent);"><i class="fas fa-coins"></i> เงินสด/ปรับปรุง</button>
+                <button class="btn btn-secondary btn-sm" onclick="triggerIndividualOutstandingNotification('${s.id}', '${(s.prefix || '') + s.full_name}')" style="color: var(--status-yellow-text);"><i class="fas fa-bell"></i> ทวงยอด</button>
                 <button class="btn btn-danger btn-sm" onclick="deleteStudent('${s.id}')">ลบ</button>
             </td>
         `;
@@ -3498,3 +3499,67 @@ function setupBulkAdjustPaymentForm() {
         }
     });
 }
+
+window.triggerBulkOutstandingNotification = async function () {
+    if (!confirm('คุณต้องการส่งแจ้งเตือนยอดค้างชำระถึงนักศึกษาทุกคนที่มีค้างจ่าย (และส่งข้อความสรุปเข้า Discord) ใช่หรือไม่?')) return;
+
+    Loading.show('กำลังส่งแจ้งเตือนค้างชำระทั้งหมด...');
+    try {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/notifications.php?action=notify_outstanding`, {
+            method: 'POST',
+            headers: {
+                ...getAuthHeaders(),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                bulk: true
+            })
+        });
+        const result = await response.json();
+
+        if (result.status === 'success') {
+            showToast(`ส่งการแจ้งเตือนค้างชำระไปยังนักศึกษาที่ค้างจ่ายทั้งหมด (${result.data.notified_count} คน) เรียบร้อยแล้ว!`);
+        } else {
+            showToast('ส่งแจ้งเตือนไม่สำเร็จ: ' + result.message, 'error');
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์', 'error');
+    } finally {
+        Loading.hide();
+    }
+};
+
+window.triggerIndividualOutstandingNotification = async function (studentId, studentName) {
+    if (!confirm(`คุณต้องการส่งแจ้งเตือนยอดค้างชำระรายบุคคลถึง ${studentName} (และส่งแจ้งเตือนเข้า Discord) ใช่หรือไม่?`)) return;
+
+    Loading.show(`กำลังส่งแจ้งเตือนค้างชำระถึง ${studentName}...`);
+    try {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/notifications.php?action=notify_outstanding`, {
+            method: 'POST',
+            headers: {
+                ...getAuthHeaders(),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                student_id: studentId
+            })
+        });
+        const result = await response.json();
+
+        if (result.status === 'success') {
+            if (result.data.notified_count > 0) {
+                showToast(`ส่งการแจ้งเตือนยอดค้างชำระถึง ${studentName} เรียบร้อยแล้ว!`);
+            } else {
+                showToast(`${studentName} ไม่มียอดค้างชำระในระบบ`, 'info');
+            }
+        } else {
+            showToast('ส่งแจ้งเตือนไม่สำเร็จ: ' + result.message, 'error');
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์', 'error');
+    } finally {
+        Loading.hide();
+    }
+};
