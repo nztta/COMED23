@@ -45,6 +45,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 9. Setup PromptPay Form
     setupPromptPayForm();
+
+    // 10. Setup Admin Ledger Panel
+    setupLedgerListeners();
 });
 
 function updateProfileUI() {
@@ -240,6 +243,9 @@ async function switchTab(tabId) {
             break;
         case 'admin-settings':
             loadSystemSettings();
+            break;
+        case 'ledger':
+            loadAdminLedger();
             break;
     }
 }
@@ -2973,4 +2979,255 @@ function setupPromptPayForm() {
             Loading.hide();
         }
     });
+}
+
+// -----------------------------------------------------------------------------
+// View 5.5: Classroom General Ledger Management
+// -----------------------------------------------------------------------------
+
+// Active filters for ledger
+let ledgerFilterMonth = '';
+let ledgerFilterType = '';
+let ledgerSearchQuery = '';
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;')
+              .replace(/'/g, '&#039;');
+}
+
+async function loadAdminLedger() {
+    const tableBody = document.getElementById('admin-ledger-table-body');
+    if (!tableBody) return;
+
+    const cacheKey = 'admin_classroom_ledger';
+    const cachedDataStr = localStorage.getItem(cacheKey);
+    let hasRenderedCache = false;
+
+    if (cachedDataStr && ledgerFilterMonth === '' && ledgerFilterType === '' && ledgerSearchQuery === '') {
+        try {
+            const data = JSON.parse(cachedDataStr);
+            renderAdminLedgerTable(data);
+            hasRenderedCache = true;
+        } catch (e) {
+            console.error('Error parsing cached classroom ledger:', e);
+        }
+    }
+
+    if (!hasRenderedCache) {
+        tableBody.innerHTML = '<tr><td colspan="6"><div class="skeleton" style="height: 150px;"></div></td></tr>';
+    }
+
+    try {
+        const url = `${CONFIG.API_BASE_URL}/ledger.php?month=${encodeURIComponent(ledgerFilterMonth)}&type=${encodeURIComponent(ledgerFilterType)}&search=${encodeURIComponent(ledgerSearchQuery)}`;
+        const response = await fetch(url, {
+            headers: getAuthHeaders()
+        });
+        const result = await response.json();
+
+        if (result.status === 'success') {
+            const data = result.data || [];
+            
+            // Only cache unfiltered queries
+            if (ledgerFilterMonth === '' && ledgerFilterType === '' && ledgerSearchQuery === '') {
+                localStorage.setItem(cacheKey, JSON.stringify(data));
+            }
+            
+            renderAdminLedgerTable(data);
+        } else {
+            showToast(result.message || 'โหลดข้อมูลบัญชีห้องเรียนไม่สำเร็จ', 'error');
+            tableBody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">${result.message || 'โหลดข้อมูลไม่สำเร็จ'}</td></tr>`;
+        }
+    } catch (error) {
+        console.error('Error fetching ledger:', error);
+        tableBody.innerHTML = '<tr><td colspan="6" class="text-center text-danger">เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์</td></tr>';
+    }
+}
+
+function renderAdminLedgerTable(data) {
+    const tableBody = document.getElementById('admin-ledger-table-body');
+    const metricBalance = document.getElementById('ledger-metric-balance');
+    const metricIncome = document.getElementById('ledger-metric-income');
+    const metricExpense = document.getElementById('ledger-metric-expense');
+
+    if (!tableBody) return;
+
+    let sumIncome = 0;
+    let sumExpense = 0;
+
+    tableBody.innerHTML = '';
+
+    const localRoleName = localStorage.getItem('user_role') || 'Viewer';
+    const canManage = localRoleName === 'Admin' || localRoleName === 'Finance';
+    
+    // Hide or show the "+ เพิ่มรายการรับ/จ่าย" button based on role
+    const addBtn = document.querySelector('[onclick="openModal(\'ledger-create-modal\')"]');
+    if (addBtn) {
+        addBtn.style.display = canManage ? 'inline-flex' : 'none';
+    }
+
+    if (data.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">ไม่มีประวัติการทำรายการในระบบ</td></tr>';
+    } else {
+        data.forEach(item => {
+            const amt = parseFloat(item.amount);
+            if (item.type === 'Income') {
+                sumIncome += amt;
+            } else if (item.type === 'Expense') {
+                sumExpense += amt;
+            }
+
+            const tr = document.createElement('tr');
+            
+            // Format type badge
+            const typeBadge = item.type === 'Income' 
+                ? '<span class="status-badge status-badge-green" style="background: rgba(16, 185, 129, 0.1); color: var(--status-green-text); padding: 0.25rem 0.5rem; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">รายรับ</span>'
+                : '<span class="status-badge status-badge-red" style="background: rgba(239, 68, 68, 0.1); color: var(--status-red-text); padding: 0.25rem 0.5rem; border-radius: 6px; font-size: 0.8rem; font-weight: 600;">รายจ่าย</span>';
+
+            const canDelete = canManage && item.title !== 'ชำระเงินค่าห้องเรียน' && item.title !== 'ปรับปรุงยอดบัญชี' && item.title !== 'คืนเงิน';
+            const deleteBtn = canDelete
+                ? `<button class="btn btn-secondary btn-sm text-danger" onclick="deleteLedgerTransaction('${item.id}')" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; border: 1px solid rgba(239, 68, 68, 0.2);"><i class="fas fa-trash-alt"></i> ลบ</button>`
+                : '<span class="text-muted" style="font-size: 0.8rem;">ระบบจัดการอัตโนมัติ</span>';
+
+            const formattedDate = new Date(item.created_at).toLocaleString('th-TH', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            tr.innerHTML = `
+                <td style="font-size: 0.9rem;">${formattedDate}</td>
+                <td>${typeBadge}</td>
+                <td style="font-weight: 500; font-size: 0.9rem;">${escapeHtml(item.title)}</td>
+                <td style="font-size: 0.9rem;">${escapeHtml(item.person_name)}</td>
+                <td style="font-weight: 700; font-size: 0.95rem; color: ${item.type === 'Income' ? 'var(--status-green-text)' : 'var(--status-red-text)'};">
+                    ${item.type === 'Income' ? '+' : '-'}${amt.toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท
+                </td>
+                <td>${deleteBtn}</td>
+            `;
+            tableBody.appendChild(tr);
+        });
+    }
+
+    // Update KPI metrics on top
+    const balance = sumIncome - sumExpense;
+    if (metricBalance) metricBalance.textContent = `${balance.toLocaleString('th-TH', { minimumFractionDigits: 2 })} THB`;
+    if (metricIncome) metricIncome.textContent = `${sumIncome.toLocaleString('th-TH', { minimumFractionDigits: 2 })} THB`;
+    if (metricExpense) metricExpense.textContent = `${sumExpense.toLocaleString('th-TH', { minimumFractionDigits: 2 })} THB`;
+}
+
+// Function to delete ledger entry
+window.deleteLedgerTransaction = async function (id) {
+    if (!confirm('คุณแน่ใจหรือไม่ว่าต้องการลบรายการนี้? การลบจะทำให้ยอดเงินในระบบเปลี่ยนไป')) return;
+
+    try {
+        const response = await fetch(`${CONFIG.API_BASE_URL}/ledger.php?action=delete`, {
+            method: 'POST',
+            headers: {
+                ...getAuthHeaders(),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ id })
+        });
+        const result = await response.json();
+
+        if (result.status === 'success') {
+            showToast('ลบรายการสำเร็จแล้ว');
+            loadAdminLedger();
+        } else {
+            showToast(result.message || 'ลบรายการไม่สำเร็จ', 'error');
+        }
+    } catch (error) {
+        console.error('Error deleting ledger entry:', error);
+        showToast('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์', 'error');
+    }
+};
+
+// Setup search & filter listeners for Admin Ledger
+function setupLedgerListeners() {
+    const monthFilter = document.getElementById('admin-ledger-filter-month');
+    const typeFilter = document.getElementById('admin-ledger-filter-type');
+    const searchInput = document.getElementById('admin-ledger-search');
+    const createForm = document.getElementById('ledger-create-form');
+
+    if (monthFilter) {
+        monthFilter.addEventListener('change', (e) => {
+            ledgerFilterMonth = e.target.value;
+            loadAdminLedger();
+        });
+    }
+
+    if (typeFilter) {
+        typeFilter.addEventListener('change', (e) => {
+            ledgerFilterType = e.target.value;
+            loadAdminLedger();
+        });
+    }
+
+    if (searchInput) {
+        let debounceTimer;
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                ledgerSearchQuery = e.target.value;
+                loadAdminLedger();
+            }, 300);
+        });
+    }
+
+    if (createForm) {
+        // Set default month & year in creation modal
+        const d = new Date();
+        const monthSelect = document.getElementById('ledger-month');
+        const yearInput = document.getElementById('ledger-year');
+        if (monthSelect) monthSelect.value = d.getMonth() + 1;
+        if (yearInput) yearInput.value = d.getFullYear();
+
+        createForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const title = document.getElementById('ledger-title').value;
+            const amount = parseFloat(document.getElementById('ledger-amount').value);
+            const type = document.getElementById('ledger-type').value;
+            const person_name = document.getElementById('ledger-person-name').value;
+            const month = parseInt(document.getElementById('ledger-month').value);
+            const year = parseInt(document.getElementById('ledger-year').value);
+
+            try {
+                const response = await fetch(`${CONFIG.API_BASE_URL}/ledger.php`, {
+                    method: 'POST',
+                    headers: {
+                        ...getAuthHeaders(),
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        title, amount, type, person_name, month, year
+                    })
+                });
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    showToast('บันทึกรายการสำเร็จแล้ว');
+                    closeModal('ledger-create-modal');
+                    createForm.reset();
+                    
+                    // Reset default values
+                    if (monthSelect) monthSelect.value = d.getMonth() + 1;
+                    if (yearInput) yearInput.value = d.getFullYear();
+
+                    loadAdminLedger();
+                } else {
+                    showToast(result.message || 'บันทึกรายการไม่สำเร็จ', 'error');
+                }
+            } catch (error) {
+                console.error('Error creating ledger transaction:', error);
+                showToast('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์', 'error');
+            }
+        });
+    }
 }
