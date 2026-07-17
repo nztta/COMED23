@@ -341,9 +341,9 @@ if ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'bulk_ad
         // Insert transaction for each student
         $stmtInsert = $db->prepare("
             INSERT INTO payment_transactions (
-                student_id, amount, transaction_type, created_by
+                student_id, amount, transaction_type, description, created_by
             ) VALUES (
-                :student_id, :amount, :type, :created_by
+                :student_id, :amount, :type, :description, :created_by
             )
         ");
 
@@ -352,6 +352,7 @@ if ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'bulk_ad
                 'student_id' => $studentId,
                 'amount' => $amount,
                 'type' => $type,
+                'description' => $description,
                 'created_by' => $user['id']
             ]);
         }
@@ -419,15 +420,16 @@ if ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'adjust_
         // Insert into payment_transactions
         $stmtInsert = $db->prepare("
             INSERT INTO payment_transactions (
-                student_id, amount, transaction_type, created_by
+                student_id, amount, transaction_type, description, created_by
             ) VALUES (
-                :student_id, :amount, :type, :created_by
+                :student_id, :amount, :type, :description, :created_by
             ) RETURNING id
         ");
         $stmtInsert->execute([
             'student_id' => $studentUuid,
             'amount' => $amount,
             'type' => $type,
+            'description' => $description,
             'created_by' => $user['id']
         ]);
         $newId = $stmtInsert->fetchColumn();

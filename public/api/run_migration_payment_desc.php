@@ -1,5 +1,5 @@
 <?php
-// api/run_migration_ledger.php
+// api/run_migration_payment_desc.php
 require_once __DIR__ . '/config/database.php';
 
 header('Content-Type: application/json');
@@ -7,26 +7,13 @@ header('Content-Type: application/json');
 try {
     $db = getDatabaseConnection();
     
-    // 1. Create treasurer_transactions table
+    // 1. Add description column to payment_transactions if not exists
     $db->exec("
-        CREATE TABLE IF NOT EXISTS public.treasurer_transactions (
-            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            title VARCHAR(255) NOT NULL,
-            amount DECIMAL(10, 2) NOT NULL CHECK (amount >= 0),
-            type VARCHAR(20) NOT NULL CHECK (type IN ('Income', 'Expense')),
-            person_name VARCHAR(255) NOT NULL,
-            status VARCHAR(20) NOT NULL DEFAULT 'Completed' CHECK (status IN ('Pending', 'Completed')),
-            month INT NOT NULL CHECK (month BETWEEN 1 AND 12),
-            year INT NOT NULL,
-            is_deleted BOOLEAN DEFAULT FALSE,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-            created_by UUID REFERENCES public.users(id) ON DELETE SET NULL,
-            updated_by UUID REFERENCES public.users(id) ON DELETE SET NULL
-        );
+        ALTER TABLE public.payment_transactions 
+        ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '';
     ");
 
-    // 2. Create the unified database VIEW
+    // 2. Re-create the unified database VIEW to include payment_transactions
     $db->exec("
         CREATE OR REPLACE VIEW public.view_classroom_ledger AS
         -- Slip submissions (verified/pending)
@@ -89,12 +76,9 @@ try {
         WHERE pt.is_deleted = false;
     ");
 
-    // 3. Clear existing data
-    $db->exec("TRUNCATE TABLE public.treasurer_transactions CASCADE;");
-
     echo json_encode([
         'status' => 'success',
-        'message' => 'Successfully ran ledger table, view, and seed migrations.'
+        'message' => 'Successfully added description column and updated classroom ledger view.'
     ]);
 } catch (Exception $e) {
     echo json_encode([
