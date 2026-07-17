@@ -48,6 +48,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 10. Setup Admin Ledger Panel
     setupLedgerListeners();
+
+    // 11. Setup Balance Adjustment Form
+    setupAdjustPaymentForm();
 });
 
 function updateProfileUI() {
@@ -554,6 +557,7 @@ function renderStudentsTable(students) {
             <td><span class="badge badge-${s.status === 'Active' ? 'green' : 'gray'}">${s.status === 'Active' ? 'เปิดใช้งาน' : 'ระงับสิทธิ์'}</span></td>
             <td>
                 <button class="btn btn-secondary btn-sm" onclick="openEditStudentModal('${s.id}')">แก้ไข</button>
+                <button class="btn btn-secondary btn-sm text-primary" onclick="openAdjustPaymentModal('${s.id}', '${(s.prefix || '') + s.full_name}')" style="color: var(--accent);"><i class="fas fa-coins"></i> เงินสด/ปรับปรุง</button>
                 <button class="btn btn-danger btn-sm" onclick="deleteStudent('${s.id}')">ลบ</button>
             </td>
         `;
@@ -3230,4 +3234,74 @@ function setupLedgerListeners() {
             }
         });
     }
+}
+
+// Balance Adjustment Modal Controller
+window.openAdjustPaymentModal = function (studentUuid, studentName) {
+    const modal = document.getElementById('adjust-payment-modal');
+    const nameDisplay = document.getElementById('adjust-student-name-display');
+    const uuidInput = document.getElementById('adjust-student-uuid');
+    const amountInput = document.getElementById('adjust-amount');
+    const typeSelect = document.getElementById('adjust-type');
+    const descInput = document.getElementById('adjust-description');
+
+    if (modal && uuidInput && nameDisplay) {
+        uuidInput.value = studentUuid;
+        nameDisplay.textContent = studentName;
+        if (amountInput) amountInput.value = '';
+        if (typeSelect) typeSelect.value = 'Adjustment';
+        if (descInput) descInput.value = '';
+
+        openModal('adjust-payment-modal');
+    }
+};
+
+function setupAdjustPaymentForm() {
+    const form = document.getElementById('adjust-payment-form');
+    if (!form) return;
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const student_id = document.getElementById('adjust-student-uuid').value;
+        const amount = parseFloat(document.getElementById('adjust-amount').value);
+        const type = document.getElementById('adjust-type').value;
+        const description = document.getElementById('adjust-description').value;
+
+        Loading.show('กำลังบันทึกรายการปรับปรุงยอด...');
+        try {
+            const response = await fetch(`${CONFIG.API_BASE_URL}/students.php?action=adjust_balance`, {
+                method: 'POST',
+                headers: {
+                    ...getAuthHeaders(),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    student_id,
+                    amount,
+                    type,
+                    description
+                })
+            });
+            const result = await response.json();
+
+            if (result.status === 'success') {
+                showToast('บันทึกการชำระเงินสด / ปรับปรุงยอดเรียบร้อยแล้ว!');
+                closeModal('adjust-payment-modal');
+                form.reset();
+                
+                // Refresh list if students panel is active
+                if (activeTab === 'students') {
+                    loadStudentsList();
+                }
+            } else {
+                showToast('บันทึกไม่สำเร็จ: ' + result.message, 'error');
+            }
+        } catch (err) {
+            console.error(err);
+            showToast('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์', 'error');
+        } finally {
+            Loading.hide();
+        }
+    });
 }

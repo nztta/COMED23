@@ -310,6 +310,78 @@ if ($method === 'GET') {
     }
 }
 
+if ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'adjust_balance') {
+    // Only Admin or Finance can adjust balances
+    $user = requireRole(['Admin', 'Finance']);
+    $input = json_decode(file_get_contents('php://input'), true) ?? $_POST;
+    
+    $studentUuid = $input['student_id'] ?? '';
+    $amount = isset($input['amount']) ? floatval($input['amount']) : 0.0;
+    $type = $input['type'] ?? ''; // 'Adjustment' or 'Refund'
+    $description = trim($input['description'] ?? '');
+
+    if (empty($studentUuid)) {
+        sendError('Student ID is required');
+    }
+    if ($amount <= 0) {
+        sendError('Amount must be greater than zero');
+    }
+    if (!in_array($type, ['Adjustment', 'Refund'])) {
+        sendError('Type must be Adjustment or Refund');
+    }
+
+    try {
+        $db = getDatabaseConnection();
+        
+        // Check if student exists
+        $stmtCheck = $db->prepare("SELECT id, full_name FROM students WHERE id = :id AND is_deleted = false");
+        $stmtCheck->execute(['id' => $studentUuid]);
+        $student = $stmtCheck->fetch();
+        if (!$student) {
+            sendError('Student not found');
+        }
+
+        // Insert into payment_transactions
+        $stmtInsert = $db->prepare("
+            INSERT INTO payment_transactions (
+                student_id, amount, transaction_type, created_by
+            ) VALUES (
+                :student_id, :amount, :type, :created_by
+            ) RETURNING id
+        ");
+        $stmtInsert->execute([
+            'student_id' => $studentUuid,
+            'amount' => $amount,
+            'type' => $type,
+            'created_by' => $user['id']
+        ]);
+        $newId = $stmtInsert->fetchColumn();
+
+        // Write audit log
+        logAudit(
+            $user['id'],
+            $user['email'],
+            'StudentPaymentAdjustment',
+            'payment_transactions',
+            $newId,
+            null,
+            [
+                'student_id' => $studentUuid,
+                'student_name' => $student['full_name'],
+                'amount' => $amount,
+                'type' => $type,
+                'description' => $description
+            ]
+        );
+
+        sendSuccess([
+            'id' => $newId
+        ], 'Balance adjusted successfully');
+    } catch (Exception $e) {
+        sendError('Database error: ' . $e->getMessage(), 500);
+    }
+}
+
 if ($method === 'POST') {
     // Only Admin or Finance can create/modify students
     $user = requireRole(['Admin', 'Finance']);
